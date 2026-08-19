@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local Android configuration
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+
+# Keystore and signing files
+*.jks
+*.keystore
+*.p12
+
+# Generated APK/AAB files
+*.apk
+*.aab
+
+# OS files
+.DS_Store
+Thumbs.db
