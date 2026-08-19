@@ -1,22 +1,16 @@
 package com.nsepapertrade
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import com.nsepapertrade.ui.PaperTradeScreen
 
 @Composable
 fun PaperTradeApp() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "NSE Paper Trade"
-        )
-    }
+    PaperTradeScreen(
+        onBuy = { _, _ ->
+            // Trading engine connection will be added next.
+        },
+        onSell = { _, _ ->
+            // Trading engine connection will be added next.
+        }
+    )
 }
