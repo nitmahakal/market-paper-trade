@@ -3,9 +3,8 @@ package com.nsepapertrade
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.nsepapertrade.ui.theme.NSEPaperTradeTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -13,11 +12,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MaterialTheme {
+            NSEPaperTradeTheme {
                 Surface {
-                    Text(
-                        text = "NSE Paper Trade"
-                    )
+                    PaperTradeApp()
                 }
             }
         }
