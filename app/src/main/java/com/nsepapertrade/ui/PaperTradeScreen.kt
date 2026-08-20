@@ -20,10 +20,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nsepapertrade.data.PortfolioSnapshot
 
 @Composable
 fun PaperTradeScreen(
-    cash: Double,
+    snapshot: PortfolioSnapshot,
     message: String,
     onBuy: (String, Int, Double) -> Unit,
     onSell: (String, Int, Double) -> Unit
@@ -38,6 +39,7 @@ fun PaperTradeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.Top
     ) {
+
         Text(
             text = "NSE Paper Trade",
             style = MaterialTheme.typography.headlineSmall
@@ -45,9 +47,8 @@ fun PaperTradeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Available Cash: ₹${"%,.2f".format(cash)}",
-            style = MaterialTheme.typography.titleMedium
+        PortfolioSummary(
+            snapshot = snapshot
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -113,6 +114,7 @@ fun PaperTradeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
             Button(
                 onClick = {
                     val qty = quantity.toIntOrNull() ?: 0
