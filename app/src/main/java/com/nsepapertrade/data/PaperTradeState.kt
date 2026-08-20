@@ -3,6 +3,7 @@ package com.nsepapertrade.data
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.nsepapertrade.model.Instrument
 
 class PaperTradeState(
     private val engine: PaperTradeEngine
@@ -15,6 +16,14 @@ class PaperTradeState(
 
     var message by mutableStateOf("")
         private set
+
+    var selectedInstrument by mutableStateOf<Instrument?>(null)
+        private set
+
+    fun selectInstrument(instrument: Instrument) {
+        selectedInstrument = instrument
+        message = "${instrument.symbol} selected"
+    }
 
     fun buy(
         symbol: String,
