@@ -3,6 +3,7 @@ package com.nsepapertrade.model
 data class Stock(
     val symbol: String,
     val name: String,
+    val instrumentType: InstrumentType = InstrumentType.EQUITY,
     val ltp: Double = 0.0,
     val isLive: Boolean = false,
     val timestamp: Long = 0L
@@ -12,6 +13,7 @@ data class Position(
     val symbol: String,
     val quantity: Int,
     val averagePrice: Double,
+    val instrumentType: InstrumentType = InstrumentType.EQUITY,
     val lastPrice: Double = 0.0
 ) {
     val investedValue: Double
@@ -31,6 +33,7 @@ data class Trade(
     val quantity: Int,
     val price: Double,
     val charge: Double,
+    val instrumentType: InstrumentType = InstrumentType.EQUITY,
     val timestamp: Long
 )
 
