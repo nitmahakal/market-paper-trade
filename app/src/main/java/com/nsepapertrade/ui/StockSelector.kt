@@ -1,13 +1,10 @@
 package com.nsepapertrade.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,7 +23,9 @@ fun StockSelector(
     selectedInstrument: Instrument?,
     onInstrumentSelected: (Instrument) -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
+    var query by remember {
+        mutableStateOf("")
+    }
 
     val filtered = remember(query, instruments) {
         val text = query.trim()
@@ -64,28 +63,23 @@ fun StockSelector(
                     .padding(top = 8.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.padding(12.dp)
                 ) {
                     Column {
                         Text(selectedInstrument.symbol)
                         Text(selectedInstrument.name)
+                        Text(selectedInstrument.exchange)
                     }
-
-                    Text(selectedInstrument.exchange)
                 }
             }
         }
 
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            items(
-                items = filtered,
-                key = { it.symbol }
-            ) { instrument ->
+            filtered.forEach { instrument ->
 
                 Card(
                     modifier = Modifier
