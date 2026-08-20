@@ -41,6 +41,13 @@ fun PaperTradeScreen(
 
     val scrollState = rememberScrollState()
 
+    val validQuantity = quantity.toIntOrNull()?.takeIf { it > 0 }
+    val validPrice = price.toDoubleOrNull()?.takeIf { it > 0.0 }
+    val canPlaceOrder =
+        selectedInstrument != null &&
+        validQuantity != null &&
+        validPrice != null
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -66,7 +73,11 @@ fun PaperTradeScreen(
         StockSelector(
             instruments = instruments,
             selectedInstrument = selectedInstrument,
-            onInstrumentSelected = onInstrumentSelected
+            onInstrumentSelected = {
+                onInstrumentSelected(it)
+                price = ""
+                quantity = ""
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -119,18 +130,13 @@ fun PaperTradeScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
+                enabled = canPlaceOrder,
                 onClick = {
-                    val qty = quantity.toIntOrNull() ?: 0
-                    val ltp = price.toDoubleOrNull() ?: 0.0
-                    val symbol = selectedInstrument?.symbol
-
-                    if (
-                        symbol != null &&
-                        qty > 0 &&
-                        ltp > 0.0
-                    ) {
-                        onBuy(symbol, qty, ltp)
-                    }
+                    onBuy(
+                        selectedInstrument!!.symbol,
+                        validQuantity!!,
+                        validPrice!!
+                    )
                 },
                 modifier = Modifier.weight(1f)
             ) {
@@ -138,18 +144,13 @@ fun PaperTradeScreen(
             }
 
             Button(
+                enabled = canPlaceOrder,
                 onClick = {
-                    val qty = quantity.toIntOrNull() ?: 0
-                    val ltp = price.toDoubleOrNull() ?: 0.0
-                    val symbol = selectedInstrument?.symbol
-
-                    if (
-                        symbol != null &&
-                        qty > 0 &&
-                        ltp > 0.0
-                    ) {
-                        onSell(symbol, qty, ltp)
-                    }
+                    onSell(
+                        selectedInstrument!!.symbol,
+                        validQuantity!!,
+                        validPrice!!
+                    )
                 },
                 modifier = Modifier.weight(1f)
             ) {
