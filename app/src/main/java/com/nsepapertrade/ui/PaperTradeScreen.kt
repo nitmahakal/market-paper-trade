@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nsepapertrade.data.MarketQuote
 import com.nsepapertrade.data.PortfolioSnapshot
 import com.nsepapertrade.model.Instrument
 
@@ -32,6 +33,7 @@ fun PaperTradeScreen(
     message: String,
     instruments: List<Instrument>,
     selectedInstrument: Instrument?,
+    quote: MarketQuote?,
     onInstrumentSelected: (Instrument) -> Unit,
     onBuy: (String, Int, Double) -> Unit,
     onSell: (String, Int, Double) -> Unit
@@ -67,6 +69,12 @@ fun PaperTradeScreen(
             instruments = instruments,
             selectedInstrument = selectedInstrument,
             onInstrumentSelected = onInstrumentSelected
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        MarketDataStatus(
+            quote = quote
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -118,7 +126,6 @@ fun PaperTradeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
             Button(
                 onClick = {
                     val qty = quantity.toIntOrNull() ?: 0
