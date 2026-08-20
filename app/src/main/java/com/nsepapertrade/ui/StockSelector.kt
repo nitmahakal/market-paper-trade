@@ -53,6 +53,9 @@ fun StockSelector(
             label = {
                 Text("Search NSE Stock")
             },
+            placeholder = {
+                Text("Symbol or company name")
+            },
             singleLine = true
         )
 
