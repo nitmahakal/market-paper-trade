@@ -1,53 +1,40 @@
 package com.nsepapertrade
 
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import com.nsepapertrade.data.PaperTradeEngine
+import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.ui.PaperTradeScreen
 
 @Composable
 fun PaperTradeApp() {
-    val engine = remember { PaperTradeEngine() }
 
-    var cash by remember {
-        mutableStateOf(engine.getAvailableCash())
+    val engine = remember {
+        PaperTradeEngine()
     }
 
-    var message by remember {
-        mutableStateOf("")
+    val state = remember {
+        PaperTradeState(engine)
     }
 
     PaperTradeScreen(
-        cash = cash,
-        message = message,
+        cash = state.availableCash,
+        message = state.message,
+
         onBuy = { symbol, quantity, price ->
-            val result = engine.buy(
+            state.buy(
                 symbol = symbol,
                 quantity = quantity,
                 price = price
             )
-
-            if (result.isSuccess) {
-                cash = engine.getAvailableCash()
-                message = "BUY successful: $symbol × $quantity"
-            } else {
-                message = result.exceptionOrNull()?.message
-                    ?: "BUY failed"
-            }
         },
+
         onSell = { symbol, quantity, price ->
-            val result = engine.sell(
+            state.sell(
                 symbol = symbol,
                 quantity = quantity,
                 price = price
             )
-
-            if (result.isSuccess) {
-                cash = engine.getAvailableCash()
-                message = "SELL successful: $symbol × $quantity"
-            } else {
-                message = result.exceptionOrNull()?.message
-                    ?: "SELL failed"
-            }
         }
     )
 }
