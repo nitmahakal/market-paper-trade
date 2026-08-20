@@ -13,6 +13,5 @@ data class MarketQuote(
     val symbol: String,
     val price: Double,
     val timestamp: Long,
-    val isDelayed: Boolean,
-    val source: String
+    val source: MarketDataSource
 )
