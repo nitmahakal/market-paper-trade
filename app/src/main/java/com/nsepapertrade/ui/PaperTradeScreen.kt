@@ -24,15 +24,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nsepapertrade.data.PortfolioSnapshot
+import com.nsepapertrade.model.Instrument
 
 @Composable
 fun PaperTradeScreen(
     snapshot: PortfolioSnapshot,
     message: String,
+    instruments: List<Instrument>,
+    selectedInstrument: Instrument?,
+    onInstrumentSelected: (Instrument) -> Unit,
     onBuy: (String, Int, Double) -> Unit,
     onSell: (String, Int, Double) -> Unit
 ) {
-    var symbol by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
 
@@ -60,6 +63,14 @@ fun PaperTradeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        StockSelector(
+            instruments = instruments,
+            selectedInstrument = selectedInstrument,
+            onInstrumentSelected = onInstrumentSelected
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -69,20 +80,6 @@ fun PaperTradeScreen(
                 Text(
                     text = "Paper Order",
                     style = MaterialTheme.typography.titleMedium
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = symbol,
-                    onValueChange = {
-                        symbol = it.uppercase()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Stock Symbol")
-                    },
-                    singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -121,12 +118,18 @@ fun PaperTradeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
             Button(
                 onClick = {
                     val qty = quantity.toIntOrNull() ?: 0
                     val ltp = price.toDoubleOrNull() ?: 0.0
+                    val symbol = selectedInstrument?.symbol
 
-                    if (symbol.isNotBlank() && qty > 0 && ltp > 0.0) {
+                    if (
+                        symbol != null &&
+                        qty > 0 &&
+                        ltp > 0.0
+                    ) {
                         onBuy(symbol, qty, ltp)
                     }
                 },
@@ -139,8 +142,13 @@ fun PaperTradeScreen(
                 onClick = {
                     val qty = quantity.toIntOrNull() ?: 0
                     val ltp = price.toDoubleOrNull() ?: 0.0
+                    val symbol = selectedInstrument?.symbol
 
-                    if (symbol.isNotBlank() && qty > 0 && ltp > 0.0) {
+                    if (
+                        symbol != null &&
+                        qty > 0 &&
+                        ltp > 0.0
+                    ) {
                         onSell(symbol, qty, ltp)
                     }
                 },
