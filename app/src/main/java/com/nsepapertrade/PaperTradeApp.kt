@@ -18,7 +18,7 @@ fun PaperTradeApp() {
     }
 
     PaperTradeScreen(
-        cash = state.availableCash,
+        snapshot = state.snapshot,
         message = state.message,
 
         onBuy = { symbol, quantity, price ->
