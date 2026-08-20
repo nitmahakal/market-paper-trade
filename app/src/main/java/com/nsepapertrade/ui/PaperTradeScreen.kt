@@ -6,8 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -33,9 +36,13 @@ fun PaperTradeScreen(
     var quantity by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
 
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
+            .navigationBarsPadding()
             .padding(16.dp),
         verticalArrangement = Arrangement.Top
     ) {
@@ -114,7 +121,6 @@ fun PaperTradeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
             Button(
                 onClick = {
                     val qty = quantity.toIntOrNull() ?: 0
@@ -152,5 +158,7 @@ fun PaperTradeScreen(
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
