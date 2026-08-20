@@ -23,8 +23,10 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun PaperTradeScreen(
-    onBuy: (Int, Double) -> Unit,
-    onSell: (Int, Double) -> Unit
+    cash: Double,
+    message: String,
+    onBuy: (String, Int, Double) -> Unit,
+    onSell: (String, Int, Double) -> Unit
 ) {
     var symbol by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
@@ -36,13 +38,19 @@ fun PaperTradeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.Top
     ) {
-
         Text(
             text = "NSE Paper Trade",
             style = MaterialTheme.typography.headlineSmall
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Available Cash: ₹${"%,.2f".format(cash)}",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth()
@@ -51,7 +59,7 @@ fun PaperTradeScreen(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "Select Stock",
+                    text = "Paper Order",
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -59,7 +67,9 @@ fun PaperTradeScreen(
 
                 OutlinedTextField(
                     value = symbol,
-                    onValueChange = { symbol = it.uppercase() },
+                    onValueChange = {
+                        symbol = it.uppercase()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = {
                         Text("Stock Symbol")
@@ -71,7 +81,9 @@ fun PaperTradeScreen(
 
                 OutlinedTextField(
                     value = price,
-                    onValueChange = { price = it },
+                    onValueChange = {
+                        price = it
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = {
                         Text("LTP")
@@ -83,7 +95,9 @@ fun PaperTradeScreen(
 
                 OutlinedTextField(
                     value = quantity,
-                    onValueChange = { quantity = it },
+                    onValueChange = {
+                        quantity = it
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = {
                         Text("Quantity")
@@ -93,7 +107,7 @@ fun PaperTradeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -105,7 +119,7 @@ fun PaperTradeScreen(
                     val ltp = price.toDoubleOrNull() ?: 0.0
 
                     if (symbol.isNotBlank() && qty > 0 && ltp > 0.0) {
-                        onBuy(qty, ltp)
+                        onBuy(symbol, qty, ltp)
                     }
                 },
                 modifier = Modifier.weight(1f)
@@ -119,13 +133,22 @@ fun PaperTradeScreen(
                     val ltp = price.toDoubleOrNull() ?: 0.0
 
                     if (symbol.isNotBlank() && qty > 0 && ltp > 0.0) {
-                        onSell(qty, ltp)
+                        onSell(symbol, qty, ltp)
                     }
                 },
                 modifier = Modifier.weight(1f)
             ) {
                 Text("SELL")
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (message.isNotBlank()) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
