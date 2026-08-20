@@ -2,6 +2,7 @@ package com.nsepapertrade
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.ui.PaperTradeScreen
@@ -17,9 +18,23 @@ fun PaperTradeApp() {
         PaperTradeState(engine)
     }
 
+    val instrumentRepository = remember {
+        InstrumentRepository()
+    }
+
+    val instruments = remember {
+        instrumentRepository.getEquities()
+    }
+
     PaperTradeScreen(
         snapshot = state.snapshot,
         message = state.message,
+        instruments = instruments,
+        selectedInstrument = state.selectedInstrument,
+
+        onInstrumentSelected = { instrument ->
+            state.selectInstrument(instrument)
+        },
 
         onBuy = { symbol, quantity, price ->
             state.buy(
