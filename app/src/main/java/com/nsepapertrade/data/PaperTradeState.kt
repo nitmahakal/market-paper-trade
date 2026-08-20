@@ -4,9 +4,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.nsepapertrade.model.Instrument
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 class PaperTradeState(
-    private val engine: PaperTradeEngine
+    private val engine: PaperTradeEngine,
+    private val marketDataRepository: MarketDataRepository,
+    private val scope: CoroutineScope
 ) {
 
     var snapshot by mutableStateOf(
@@ -20,9 +25,42 @@ class PaperTradeState(
     var selectedInstrument by mutableStateOf<Instrument?>(null)
         private set
 
+    var quote by mutableStateOf<MarketQuote?>(null)
+        private set
+
+    var marketDataError by mutableStateOf("")
+        private set
+
+    private var quoteJob: Job? = null
+
     fun selectInstrument(instrument: Instrument) {
         selectedInstrument = instrument
+        quote = null
+        marketDataError = ""
         message = "${instrument.symbol} selected"
+
+        loadQuote(instrument)
+    }
+
+    fun loadQuote(instrument: Instrument) {
+        quoteJob?.cancel()
+
+        quoteJob = scope.launch {
+            try {
+                val result = marketDataRepository.getQuote(instrument)
+
+                quote = result
+
+                marketDataError = if (result == null) {
+                    "No market data available."
+                } else {
+                    ""
+                }
+            } catch (e: Exception) {
+                quote = null
+                marketDataError = e.message ?: "Market data error."
+            }
+        }
     }
 
     fun buy(
@@ -40,8 +78,7 @@ class PaperTradeState(
             snapshot = engine.getPortfolioSnapshot()
             message = "BUY successful: $symbol × $quantity"
         } else {
-            message = result.exceptionOrNull()?.message
-                ?: "BUY failed"
+            message = result.exceptionOrNull()?.message ?: "BUY failed"
         }
     }
 
@@ -60,8 +97,7 @@ class PaperTradeState(
             snapshot = engine.getPortfolioSnapshot()
             message = "SELL successful: $symbol × $quantity"
         } else {
-            message = result.exceptionOrNull()?.message
-                ?: "SELL failed"
+            message = result.exceptionOrNull()?.message ?: "SELL failed"
         }
     }
 }
