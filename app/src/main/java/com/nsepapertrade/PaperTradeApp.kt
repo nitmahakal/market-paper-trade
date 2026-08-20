@@ -2,10 +2,7 @@ package com.nsepapertrade
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import com.nsepapertrade.data.InstrumentRepository
-import com.nsepapertrade.data.ManualMarketDataProvider
-import com.nsepapertrade.data.MarketDataRepository
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.ui.PaperTradeScreen
@@ -13,28 +10,12 @@ import com.nsepapertrade.ui.PaperTradeScreen
 @Composable
 fun PaperTradeApp() {
 
-    val scope = rememberCoroutineScope()
-
     val engine = remember {
         PaperTradeEngine()
     }
 
-    val marketDataProvider = remember {
-        ManualMarketDataProvider()
-    }
-
-    val marketDataRepository = remember {
-        MarketDataRepository(
-            provider = marketDataProvider
-        )
-    }
-
     val state = remember {
-        PaperTradeState(
-            engine = engine,
-            marketDataRepository = marketDataRepository,
-            scope = scope
-        )
+        PaperTradeState(engine)
     }
 
     val instrumentRepository = remember {
@@ -50,7 +31,6 @@ fun PaperTradeApp() {
         message = state.message,
         instruments = instruments,
         selectedInstrument = state.selectedInstrument,
-        quote = state.quote,
 
         onInstrumentSelected = { instrument ->
             state.selectInstrument(instrument)
