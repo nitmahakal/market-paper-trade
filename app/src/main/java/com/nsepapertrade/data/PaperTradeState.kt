@@ -8,7 +8,9 @@ class PaperTradeState(
     private val engine: PaperTradeEngine
 ) {
 
-    var availableCash by mutableStateOf(engine.getAvailableCash())
+    var snapshot by mutableStateOf(
+        engine.getPortfolioSnapshot()
+    )
         private set
 
     var message by mutableStateOf("")
@@ -26,7 +28,7 @@ class PaperTradeState(
         )
 
         if (result.isSuccess) {
-            availableCash = engine.getAvailableCash()
+            snapshot = engine.getPortfolioSnapshot()
             message = "BUY successful: $symbol × $quantity"
         } else {
             message = result.exceptionOrNull()?.message
@@ -46,7 +48,7 @@ class PaperTradeState(
         )
 
         if (result.isSuccess) {
-            availableCash = engine.getAvailableCash()
+            snapshot = engine.getPortfolioSnapshot()
             message = "SELL successful: $symbol × $quantity"
         } else {
             message = result.exceptionOrNull()?.message
