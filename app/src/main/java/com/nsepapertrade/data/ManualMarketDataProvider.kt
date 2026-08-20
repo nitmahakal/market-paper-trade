@@ -26,8 +26,7 @@ class ManualMarketDataProvider : MarketDataProvider {
             symbol = instrument.symbol,
             price = price,
             timestamp = System.currentTimeMillis(),
-            isDelayed = true,
-            source = "Manual"
+            source = MarketDataSource.MANUAL
         )
     }
 }
