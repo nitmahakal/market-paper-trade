@@ -3,7 +3,6 @@ package com.nsepapertrade.data
 import com.nsepapertrade.model.Position
 import com.nsepapertrade.model.Trade
 import com.nsepapertrade.model.TradeSide
-import kotlin.math.max
 
 class PaperTradeEngine(
     private val repository: PaperTradeRepository = PaperTradeRepository()
@@ -11,6 +10,10 @@ class PaperTradeEngine(
 
     companion object {
         const val INITIAL_CAPITAL = 1_000_000.0
+
+        // Simple paper-trading charge model:
+        // Brokerage = 0.04%
+        // Other expenses = 25% of brokerage
         const val BROKERAGE_RATE = 0.0004
         const val EXTRA_EXPENSE_RATE = 0.25
     }
@@ -44,6 +47,12 @@ class PaperTradeEngine(
         price: Double
     ): Result<Trade> {
 
+        if (symbol.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Stock symbol is required.")
+            )
+        }
+
         if (quantity <= 0) {
             return Result.failure(
                 IllegalArgumentException("Quantity must be greater than zero.")
@@ -73,17 +82,23 @@ class PaperTradeEngine(
             .firstOrNull { it.symbol == symbol }
 
         val newPosition = if (existing == null) {
+
             Position(
                 symbol = symbol,
                 quantity = quantity,
                 averagePrice = price,
                 lastPrice = price
             )
+
         } else {
+
             val newQuantity = existing.quantity + quantity
+
             val newAveragePrice =
-                ((existing.quantity * existing.averagePrice) +
-                        (quantity * price)) / newQuantity
+                (
+                    (existing.quantity * existing.averagePrice) +
+                    (quantity * price)
+                ) / newQuantity
 
             existing.copy(
                 quantity = newQuantity,
@@ -115,6 +130,12 @@ class PaperTradeEngine(
         price: Double
     ): Result<Trade> {
 
+        if (symbol.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Stock symbol is required.")
+            )
+        }
+
         if (quantity <= 0) {
             return Result.failure(
                 IllegalArgumentException("Quantity must be greater than zero.")
@@ -131,7 +152,13 @@ class PaperTradeEngine(
             .getPositions()
             .firstOrNull { it.symbol == symbol }
 
-        if (existing == null || existing.quantity < quantity) {
+        if (existing == null) {
+            return Result.failure(
+                IllegalStateException("No open position for $symbol.")
+            )
+        }
+
+        if (existing.quantity < quantity) {
             return Result.failure(
                 IllegalStateException("Not enough shares to sell.")
             )
@@ -146,8 +173,11 @@ class PaperTradeEngine(
         val remainingQuantity = existing.quantity - quantity
 
         if (remainingQuantity == 0) {
+
             repository.removePosition(symbol)
+
         } else {
+
             repository.addPosition(
                 existing.copy(
                     quantity = remainingQuantity,
@@ -176,15 +206,20 @@ class PaperTradeEngine(
         price: Double
     ) {
 
-        if (price <= 0.0) return
+        if (symbol.isBlank() || price <= 0.0) {
+            return
+        }
 
         val existing = repository
             .getPositions()
             .firstOrNull { it.symbol == symbol }
 
         if (existing != null) {
+
             repository.addPosition(
-                existing.copy(lastPrice = price)
+                existing.copy(
+                    lastPrice = price
+                )
             )
         }
     }
@@ -195,8 +230,30 @@ class PaperTradeEngine(
             .sumOf { it.unrealizedPnl }
     }
 
-    fun getPortfolioValue(): Double {
-        return availableCash +
-                repository.getPositions().sumOf { it.currentValue }
+    fun getInvestedValue(): Double {
+        return repository
+            .getPositions()
+            .sumOf { it.investedValue }
+    }
+
+    fun getCurrentValue(): Double {
+        return repository
+            .getPositions()
+            .sumOf { it.currentValue }
+    }
+
+    fun getPortfolioSnapshot(): PortfolioSnapshot {
+
+        val investedValue = getInvestedValue()
+        val currentValue = getCurrentValue()
+        val unrealizedPnl = getUnrealizedPnl()
+
+        return PortfolioSnapshot(
+            availableCash = availableCash,
+            investedValue = investedValue,
+            currentValue = currentValue,
+            unrealizedPnl = unrealizedPnl,
+            totalValue = availableCash + currentValue
+        )
     }
 }
