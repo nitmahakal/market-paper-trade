@@ -3,7 +3,6 @@ package com.nsepapertrade.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -12,8 +11,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +33,7 @@ fun PaperTradeScreen(
     message: String,
     instruments: List<Instrument>,
     selectedInstrument: Instrument?,
-    onInstrumentSelected: (Instrument) -> Unit,
+    onInstrumentSelected: (Instrument?) -> Unit,
     onBuy: (String, Int, Double) -> Unit,
     onSell: (String, Int, Double) -> Unit
 ) {
@@ -43,6 +44,7 @@ fun PaperTradeScreen(
 
     val validQuantity = quantity.toIntOrNull()?.takeIf { it > 0 }
     val validPrice = price.toDoubleOrNull()?.takeIf { it > 0.0 }
+
     val canPlaceOrder =
         selectedInstrument != null &&
         validQuantity != null &&
@@ -53,8 +55,7 @@ fun PaperTradeScreen(
             .fillMaxSize()
             .verticalScroll(scrollState)
             .navigationBarsPadding()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Top
+            .padding(16.dp)
     ) {
 
         Text(
@@ -62,25 +63,35 @@ fun PaperTradeScreen(
             style = MaterialTheme.typography.headlineSmall
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PortfolioSummary(
-            snapshot = snapshot
+        androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(16.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        PortfolioSummary(snapshot = snapshot)
+
+        androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(16.dp)
+        )
 
         StockSelector(
             instruments = instruments,
             selectedInstrument = selectedInstrument,
             onInstrumentSelected = {
                 onInstrumentSelected(it)
-                price = ""
-                quantity = ""
+
+                if (it != null) {
+                    price = ""
+                    quantity = ""
+                } else {
+                    price = ""
+                    quantity = ""
+                }
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(16.dp)
+        )
 
         Card(
             modifier = Modifier.fillMaxWidth()
@@ -93,72 +104,94 @@ fun PaperTradeScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                androidx.compose.foundation.layout.Spacer(
+                    modifier = Modifier.height(10.dp)
+                )
 
                 OutlinedTextField(
                     value = price,
-                    onValueChange = {
-                        price = it
-                    },
+                    onValueChange = { price = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("LTP")
-                    },
+                    label = { Text("LTP") },
                     singleLine = true
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                androidx.compose.foundation.layout.Spacer(
+                    modifier = Modifier.height(10.dp)
+                )
 
                 OutlinedTextField(
                     value = quantity,
-                    onValueChange = {
-                        quantity = it
-                    },
+                    onValueChange = { quantity = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Quantity")
-                    },
+                    label = { Text("Quantity") },
                     singleLine = true
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(16.dp)
+        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                enabled = canPlaceOrder,
-                onClick = {
-                    onBuy(
-                        selectedInstrument!!.symbol,
-                        validQuantity!!,
-                        validPrice!!
-                    )
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("BUY")
-            }
 
-            Button(
-                enabled = canPlaceOrder,
-                onClick = {
-                    onSell(
-                        selectedInstrument!!.symbol,
-                        validQuantity!!,
-                        validPrice!!
-                    )
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("SELL")
+            if (canPlaceOrder) {
+
+                Button(
+                    onClick = {
+                        onBuy(
+                            selectedInstrument!!.symbol,
+                            validQuantity!!,
+                            validPrice!!
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors()
+                ) {
+                    Text("BUY")
+                }
+
+                Button(
+                    onClick = {
+                        onSell(
+                            selectedInstrument!!.symbol,
+                            validQuantity!!,
+                            validPrice!!
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors()
+                ) {
+                    Text("SELL")
+                }
+
+            } else {
+
+                OutlinedButton(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("BUY")
+                }
+
+                OutlinedButton(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("SELL")
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(16.dp)
+        )
 
         if (message.isNotBlank()) {
             Text(
@@ -167,6 +200,8 @@ fun PaperTradeScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(24.dp)
+        )
     }
 }
