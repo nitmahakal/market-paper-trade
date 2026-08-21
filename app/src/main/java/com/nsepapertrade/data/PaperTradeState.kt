@@ -25,6 +25,11 @@ class PaperTradeState(
         message = "${instrument.symbol} selected"
     }
 
+    fun clearSelectedInstrument() {
+        selectedInstrument = null
+        message = ""
+    }
+
     fun buy(
         symbol: String,
         quantity: Int,
