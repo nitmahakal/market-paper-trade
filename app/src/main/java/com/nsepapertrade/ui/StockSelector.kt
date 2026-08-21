@@ -21,7 +21,7 @@ import com.nsepapertrade.model.Instrument
 fun StockSelector(
     instruments: List<Instrument>,
     selectedInstrument: Instrument?,
-    onInstrumentSelected: (Instrument) -> Unit
+    onInstrumentSelected: (Instrument?) -> Unit
 ) {
     var query by remember {
         mutableStateOf("")
@@ -48,6 +48,10 @@ fun StockSelector(
             value = query,
             onValueChange = {
                 query = it
+
+                if (it.isBlank()) {
+                    onInstrumentSelected(null)
+                }
             },
             modifier = Modifier.fillMaxWidth(),
             label = {
@@ -83,7 +87,6 @@ fun StockSelector(
                 .padding(top = 8.dp)
         ) {
             filtered.forEach { instrument ->
-
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
