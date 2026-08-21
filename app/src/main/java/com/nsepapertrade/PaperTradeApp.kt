@@ -33,7 +33,11 @@ fun PaperTradeApp() {
         selectedInstrument = state.selectedInstrument,
 
         onInstrumentSelected = { instrument ->
-            state.selectInstrument(instrument)
+            if (instrument == null) {
+                state.clearSelectedInstrument()
+            } else {
+                state.selectInstrument(instrument)
+            }
         },
 
         onBuy = { symbol, quantity, price ->
