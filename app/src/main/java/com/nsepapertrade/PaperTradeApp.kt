@@ -6,6 +6,8 @@ import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.ui.PaperTradeScreen
+import com.nsepapertrade.data.MarketDataState
+import com.nsepapertrade.data.YahooMarketDataProvider
 
 @Composable
 fun PaperTradeApp() {
@@ -20,6 +22,13 @@ fun PaperTradeApp() {
 
     val instrumentRepository = remember {
         InstrumentRepository()
+    }
+
+    val marketDataState = remember {
+        MarketDataState(
+        provider = YahooMarketDataProvider(),
+        scope = kotlinx.coroutines.rememberCoroutineScope()
+        )
     }
 
     val instruments = remember {
