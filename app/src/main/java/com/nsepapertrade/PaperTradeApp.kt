@@ -6,10 +6,12 @@ import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.ui.PaperTradeScreen
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun PaperTradeApp() {
-
+    val marketDataScope = rememberCoroutineScope()
+    
     val engine = remember {
         PaperTradeEngine()
     }
