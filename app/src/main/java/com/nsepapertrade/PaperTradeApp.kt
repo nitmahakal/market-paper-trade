@@ -9,6 +9,7 @@ import com.nsepapertrade.ui.PaperTradeScreen
 import androidx.compose.runtime.rememberCoroutineScope
 import com.nsepapertrade.data.MarketDataState
 import com.nsepapertrade.data.YahooMarketDataProvider
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun PaperTradeApp() {
@@ -20,6 +21,17 @@ fun PaperTradeApp() {
         scope = marketDataScope
         )
     }
+    
+    LaunchedEffect(state.selectedInstrument) {
+        val instrument = state.selectedInstrument
+
+        if (instrument != null) {
+            marketDataState.start(instrument)
+        } else {
+            marketDataState.stop()
+        }
+    }
+
     
     val engine = remember {
         PaperTradeEngine()
