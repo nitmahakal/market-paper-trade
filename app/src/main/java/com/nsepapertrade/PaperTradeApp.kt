@@ -7,10 +7,19 @@ import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.ui.PaperTradeScreen
 import androidx.compose.runtime.rememberCoroutineScope
+import com.nsepapertrade.data.MarketDataState
+import com.nsepapertrade.data.YahooMarketDataProvider
 
 @Composable
 fun PaperTradeApp() {
     val marketDataScope = rememberCoroutineScope()
+
+    val marketDataState = remember {
+        MarketDataState(
+        provider = YahooMarketDataProvider(),
+        scope = marketDataScope
+        )
+    }
     
     val engine = remember {
         PaperTradeEngine()
