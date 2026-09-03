@@ -31,6 +31,16 @@ fun PaperTradeApp() {
         PaperTradeState(engine)
     }
 
+    LaunchedEffect(state.selectedInstrument) {
+        val instrument = state.selectedInstrument
+
+        if (instrument != null) {
+            marketDataState.start(instrument)
+        } else {
+            marketDataState.stop()
+        }
+    }
+
     val instrumentRepository = remember {
         InstrumentRepository()
     }
