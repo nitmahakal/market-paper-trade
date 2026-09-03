@@ -26,10 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nsepapertrade.data.PortfolioSnapshot
 import com.nsepapertrade.model.Instrument
+import com.nsepapertrade.data.MarketQuote
 
 @Composable
 fun PaperTradeScreen(
     snapshot: PortfolioSnapshot,
+    marketQuote: MarketQuote?,
     message: String,
     instruments: List<Instrument>,
     selectedInstrument: Instrument?,
