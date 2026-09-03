@@ -41,6 +41,8 @@ fun PaperTradeApp() {
         }
     }
 
+    val marketQuote = marketDataState.quote
+
     val instrumentRepository = remember {
         InstrumentRepository()
     }
