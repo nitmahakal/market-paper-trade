@@ -19,6 +19,7 @@ class PaperTradeEngine(
     }
 
     private var availableCash = INITIAL_CAPITAL
+    private var realizedPnl = 0.0
 
     fun getAvailableCash(): Double {
         return availableCash
@@ -79,7 +80,9 @@ class PaperTradeEngine(
 
         val existing = repository
             .getPositions()
-            .firstOrNull { it.symbol == symbol }
+            .firstOrNull {
+                it.symbol.equals(symbol, ignoreCase = true)
+            }
 
         val newPosition = if (existing == null) {
 
@@ -150,7 +153,9 @@ class PaperTradeEngine(
 
         val existing = repository
             .getPositions()
-            .firstOrNull { it.symbol == symbol }
+            .firstOrNull {
+                it.symbol.equals(symbol, ignoreCase = true)
+            }
 
         if (existing == null) {
             return Result.failure(
@@ -167,6 +172,14 @@ class PaperTradeEngine(
         val tradeValue = quantity * price
         val charge = calculateTotalCharge(tradeValue)
         val proceeds = tradeValue - charge
+
+        // Realized P&L:
+        // Gross profit/loss against the average buy price,
+        // minus the sell-side transaction charge.
+        val realizedTradePnl =
+            ((price - existing.averagePrice) * quantity) - charge
+
+        realizedPnl += realizedTradePnl
 
         availableCash += proceeds
 
@@ -212,7 +225,9 @@ class PaperTradeEngine(
 
         val existing = repository
             .getPositions()
-            .firstOrNull { it.symbol == symbol }
+            .firstOrNull {
+                it.symbol.equals(symbol, ignoreCase = true)
+            }
 
         if (existing != null) {
 
@@ -222,6 +237,10 @@ class PaperTradeEngine(
                 )
             )
         }
+    }
+
+    fun getRealizedPnl(): Double {
+        return realizedPnl
     }
 
     fun getUnrealizedPnl(): Double {
@@ -252,6 +271,7 @@ class PaperTradeEngine(
             availableCash = availableCash,
             investedValue = investedValue,
             currentValue = currentValue,
+            realizedPnl = realizedPnl,
             unrealizedPnl = unrealizedPnl,
             totalValue = availableCash + currentValue
         )
