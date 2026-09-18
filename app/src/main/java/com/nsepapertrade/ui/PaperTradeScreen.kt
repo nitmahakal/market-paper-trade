@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,20 @@ fun PaperTradeScreen(
     var price by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(
+        selectedInstrument?.symbol,
+        marketQuote?.symbol,
+        marketQuote?.price
+    ) {
+        if (
+            selectedInstrument != null &&
+            marketQuote?.symbol == selectedInstrument.symbol &&
+            marketQuote.price > 0.0
+        ) {
+            price = marketQuote.price.toString()
+        }
+    }
 
     val validQuantity = quantity.toIntOrNull()?.takeIf { it > 0 }
     val validPrice = price.toDoubleOrNull()?.takeIf { it > 0.0 }
@@ -80,14 +95,8 @@ fun PaperTradeScreen(
             selectedInstrument = selectedInstrument,
             onInstrumentSelected = {
                 onInstrumentSelected(it)
-
-                if (it != null) {
-                    price = ""
-                    quantity = ""
-                } else {
-                    price = ""
-                    quantity = ""
-                }
+                price = ""
+                quantity = ""
             }
         )
 
