@@ -27,15 +27,18 @@ fun StockSelector(
         mutableStateOf("")
     }
 
-    val filtered = remember(query, instruments) {
+    val filtered = remember(query, instruments, selectedInstrument) {
         val text = query.trim()
 
-        if (text.isEmpty()) {
-            instruments
+        if (
+            text.isEmpty() ||
+            selectedInstrument != null
+        ) {
+            emptyList()
         } else {
             instruments.filter {
                 it.symbol.contains(text, ignoreCase = true) ||
-                it.name.contains(text, ignoreCase = true)
+                    it.name.contains(text, ignoreCase = true)
             }
         }
     }
@@ -81,26 +84,29 @@ fun StockSelector(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-        ) {
-            filtered.forEach { instrument ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 3.dp)
-                        .clickable {
-                            onInstrumentSelected(instrument)
-                            query = instrument.symbol
-                        }
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
+        if (filtered.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
+                filtered.forEach { instrument ->
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .clickable {
+                                query = instrument.symbol
+                                onInstrumentSelected(instrument)
+                            }
                     ) {
-                        Text(instrument.symbol)
-                        Text(instrument.name)
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(instrument.symbol)
+                            Text(instrument.name)
+                        }
                     }
                 }
             }
