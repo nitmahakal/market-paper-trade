@@ -1,6 +1,5 @@
 package com.nsepapertrade
 
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -24,8 +23,10 @@ fun PaperTradeApp() {
         )
     }
 
-    val engine = remember {
-        PaperTradeEngine()
+    val context = LocalContext.current
+
+    val engine = remember(context) {
+        PaperTradeEngine(context)
     }
 
     val state = remember {
@@ -43,8 +44,6 @@ fun PaperTradeApp() {
     }
 
     val marketQuote = marketDataState.quote
-
-    val context = LocalContext.current
 
     val instrumentRepository = remember(context) {
         InstrumentRepository(context)
