@@ -56,6 +56,7 @@ fun PaperTradeApp() {
 
     PaperTradeScreen(
         snapshot = state.snapshot,
+        positions = state.positions,
         marketQuote = marketQuote,
         message = state.message,
         instruments = instruments,
