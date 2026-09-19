@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,13 +24,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nsepapertrade.data.MarketQuote
 import com.nsepapertrade.data.PortfolioSnapshot
 import com.nsepapertrade.model.Instrument
-import com.nsepapertrade.data.MarketQuote
+import com.nsepapertrade.model.Position
 
 @Composable
 fun PaperTradeScreen(
     snapshot: PortfolioSnapshot,
+    positions: List<Position>,
     marketQuote: MarketQuote?,
     message: String,
     instruments: List<Instrument>,
@@ -84,7 +85,10 @@ fun PaperTradeScreen(
             modifier = Modifier.height(16.dp)
         )
 
-        PortfolioSummary(snapshot = snapshot)
+        PortfolioSummary(
+            snapshot = snapshot,
+            positions = positions
+        )
 
         androidx.compose.foundation.layout.Spacer(
             modifier = Modifier.height(16.dp)
@@ -104,7 +108,7 @@ fun PaperTradeScreen(
             modifier = Modifier.height(16.dp)
         )
 
-        Card(
+        androidx.compose.material3.Card(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
