@@ -47,6 +47,7 @@ class InstrumentRepository(
         val result = mutableListOf<Instrument>()
 
         context.assets.open("EQUITY_L.csv").use { input ->
+
             BufferedReader(
                 InputStreamReader(input, Charsets.UTF_8)
             ).useLines { lines ->
@@ -61,6 +62,7 @@ class InstrumentRepository(
                     .removePrefix("\uFEFF")
 
                 val columns = parseCsvLine(header)
+                    .map { it.trim() }
 
                 val symbolIndex = columns.indexOfFirst {
                     it.equals("SYMBOL", ignoreCase = true)
@@ -83,6 +85,7 @@ class InstrumentRepository(
                 }
 
                 while (iterator.hasNext()) {
+
                     val row = parseCsvLine(iterator.next())
 
                     if (
@@ -125,11 +128,12 @@ class InstrumentRepository(
     private fun parseCsvLine(line: String): List<String> {
         val result = mutableListOf<String>()
         val current = StringBuilder()
-        var insideQuotes = false
 
+        var insideQuotes = false
         var index = 0
 
         while (index < line.length) {
+
             val char = line[index]
 
             when {
