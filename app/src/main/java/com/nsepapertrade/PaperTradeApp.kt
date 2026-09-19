@@ -1,15 +1,17 @@
 package com.nsepapertrade
 
+import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import com.nsepapertrade.data.InstrumentRepository
+import com.nsepapertrade.data.MarketDataState
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
-import com.nsepapertrade.ui.PaperTradeScreen
-import androidx.compose.runtime.rememberCoroutineScope
-import com.nsepapertrade.data.MarketDataState
 import com.nsepapertrade.data.YahooMarketDataProvider
-import androidx.compose.runtime.LaunchedEffect
+import com.nsepapertrade.ui.PaperTradeScreen
 
 @Composable
 fun PaperTradeApp() {
@@ -17,12 +19,11 @@ fun PaperTradeApp() {
 
     val marketDataState = remember {
         MarketDataState(
-        provider = YahooMarketDataProvider(),
-        scope = marketDataScope
+            provider = YahooMarketDataProvider(),
+            scope = marketDataScope
         )
     }
-    
-       
+
     val engine = remember {
         PaperTradeEngine()
     }
@@ -43,12 +44,13 @@ fun PaperTradeApp() {
 
     val marketQuote = marketDataState.quote
 
-    val instrumentRepository = remember {
-        InstrumentRepository()
+    val context = LocalContext.current
+
+    val instrumentRepository = remember(context) {
+        InstrumentRepository(context)
     }
-    
-  
-    val instruments = remember {
+
+    val instruments = remember(instrumentRepository) {
         instrumentRepository.getEquities()
     }
 
