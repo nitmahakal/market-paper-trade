@@ -1,25 +1,41 @@
 package com.nsepapertrade.data
 
+import android.content.Context
 import com.nsepapertrade.model.Position
 import com.nsepapertrade.model.Trade
 import com.nsepapertrade.model.TradeSide
 
 class PaperTradeEngine(
-    private val repository: PaperTradeRepository = PaperTradeRepository()
+    context: Context
 ) {
 
     companion object {
         const val INITIAL_CAPITAL = 1_000_000.0
 
-        // Simple paper-trading charge model:
-        // Brokerage = 0.04%
-        // Other expenses = 25% of brokerage
         const val BROKERAGE_RATE = 0.0004
         const val EXTRA_EXPENSE_RATE = 0.25
+
+        private const val CASH_KEY = "available_cash"
+        private const val REALIZED_PNL_KEY = "realized_pnl"
     }
 
-    private var availableCash = INITIAL_CAPITAL
-    private var realizedPnl = 0.0
+    private val storage = PaperTradeStorage(context)
+
+    private val repository = PaperTradeRepository(
+        PaperTradePersistence(storage)
+    )
+
+    private var availableCash =
+        storage.getDouble(
+            CASH_KEY,
+            INITIAL_CAPITAL
+        )
+
+    private var realizedPnl =
+        storage.getDouble(
+            REALIZED_PNL_KEY,
+            0.0
+        )
 
     fun getAvailableCash(): Double {
         return availableCash
@@ -78,10 +94,18 @@ class PaperTradeEngine(
 
         availableCash -= totalCost
 
+        storage.putDouble(
+            CASH_KEY,
+            availableCash
+        )
+
         val existing = repository
             .getPositions()
             .firstOrNull {
-                it.symbol.equals(symbol, ignoreCase = true)
+                it.symbol.equals(
+                    symbol,
+                    ignoreCase = true
+                )
             }
 
         val newPosition = if (existing == null) {
@@ -95,7 +119,8 @@ class PaperTradeEngine(
 
         } else {
 
-            val newQuantity = existing.quantity + quantity
+            val newQuantity =
+                existing.quantity + quantity
 
             val newAveragePrice =
                 (
@@ -110,16 +135,21 @@ class PaperTradeEngine(
             )
         }
 
-        repository.addPosition(newPosition)
+        repository.addPosition(
+            newPosition
+        )
+
+        val timestamp =
+            System.currentTimeMillis()
 
         val trade = Trade(
-            id = System.currentTimeMillis(),
+            id = timestamp,
             symbol = symbol,
             side = TradeSide.BUY,
             quantity = quantity,
             price = price,
             charge = charge,
-            timestamp = System.currentTimeMillis()
+            timestamp = timestamp
         )
 
         repository.addTrade(trade)
@@ -154,18 +184,25 @@ class PaperTradeEngine(
         val existing = repository
             .getPositions()
             .firstOrNull {
-                it.symbol.equals(symbol, ignoreCase = true)
+                it.symbol.equals(
+                    symbol,
+                    ignoreCase = true
+                )
             }
 
         if (existing == null) {
             return Result.failure(
-                IllegalStateException("No open position for $symbol.")
+                IllegalStateException(
+                    "No open position for $symbol."
+                )
             )
         }
 
         if (existing.quantity < quantity) {
             return Result.failure(
-                IllegalStateException("Not enough shares to sell.")
+                IllegalStateException(
+                    "Not enough shares to sell."
+                )
             )
         }
 
@@ -173,21 +210,31 @@ class PaperTradeEngine(
         val charge = calculateTotalCharge(tradeValue)
         val proceeds = tradeValue - charge
 
-        // Realized P&L:
-        // Gross profit/loss against the average buy price,
-        // minus the sell-side transaction charge.
         val realizedTradePnl =
             ((price - existing.averagePrice) * quantity) - charge
 
         realizedPnl += realizedTradePnl
 
+        storage.putDouble(
+            REALIZED_PNL_KEY,
+            realizedPnl
+        )
+
         availableCash += proceeds
 
-        val remainingQuantity = existing.quantity - quantity
+        storage.putDouble(
+            CASH_KEY,
+            availableCash
+        )
+
+        val remainingQuantity =
+            existing.quantity - quantity
 
         if (remainingQuantity == 0) {
 
-            repository.removePosition(symbol)
+            repository.removePosition(
+                symbol
+            )
 
         } else {
 
@@ -199,14 +246,17 @@ class PaperTradeEngine(
             )
         }
 
+        val timestamp =
+            System.currentTimeMillis()
+
         val trade = Trade(
-            id = System.currentTimeMillis(),
+            id = timestamp,
             symbol = symbol,
             side = TradeSide.SELL,
             quantity = quantity,
             price = price,
             charge = charge,
-            timestamp = System.currentTimeMillis()
+            timestamp = timestamp
         )
 
         repository.addTrade(trade)
@@ -218,15 +268,20 @@ class PaperTradeEngine(
         symbol: String,
         price: Double
     ) {
-
-        if (symbol.isBlank() || price <= 0.0) {
+        if (
+            symbol.isBlank() ||
+            price <= 0.0
+        ) {
             return
         }
 
         val existing = repository
             .getPositions()
             .firstOrNull {
-                it.symbol.equals(symbol, ignoreCase = true)
+                it.symbol.equals(
+                    symbol,
+                    ignoreCase = true
+                )
             }
 
         if (existing != null) {
@@ -246,26 +301,37 @@ class PaperTradeEngine(
     fun getUnrealizedPnl(): Double {
         return repository
             .getPositions()
-            .sumOf { it.unrealizedPnl }
+            .sumOf {
+                it.unrealizedPnl
+            }
     }
 
     fun getInvestedValue(): Double {
         return repository
             .getPositions()
-            .sumOf { it.investedValue }
+            .sumOf {
+                it.investedValue
+            }
     }
 
     fun getCurrentValue(): Double {
         return repository
             .getPositions()
-            .sumOf { it.currentValue }
+            .sumOf {
+                it.currentValue
+            }
     }
 
     fun getPortfolioSnapshot(): PortfolioSnapshot {
 
-        val investedValue = getInvestedValue()
-        val currentValue = getCurrentValue()
-        val unrealizedPnl = getUnrealizedPnl()
+        val investedValue =
+            getInvestedValue()
+
+        val currentValue =
+            getCurrentValue()
+
+        val unrealizedPnl =
+            getUnrealizedPnl()
 
         return PortfolioSnapshot(
             availableCash = availableCash,
