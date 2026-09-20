@@ -2,6 +2,8 @@ package com.nsepapertrade.data
 
 import android.content.Context
 import com.nsepapertrade.model.FnoContract
+import com.nsepapertrade.model.FnoContractType
+import com.nsepapertrade.model.OptionType
 
 class FnoContractManager(
     context: Context,
@@ -16,7 +18,7 @@ class FnoContractManager(
     fun getLastUpdateTime(): Long =
         store.getLastUpdateTime()
 
-    suspend fun update(): Result<Int> {
+    suspend fun update(): FnoContractUpdateResult {
         return try {
             val downloadedContracts = provider.fetchContracts()
 
@@ -24,21 +26,30 @@ class FnoContractManager(
                 downloadedContracts.filter { isValidContract(it) }
 
             if (validContracts.isEmpty()) {
-                return Result.failure(
-                    IllegalStateException(
-                        "NSE returned no valid F&O contracts."
-                    )
+                return FnoContractUpdateResult(
+                    success = false,
+                    contractCount = 0,
+                    updateTime = 0L,
+                    message = "NSE returned no valid F&O contracts."
                 )
             }
 
             store.saveContracts(validContracts)
 
-            Result.success(validContracts.size)
+            FnoContractUpdateResult(
+                success = true,
+                contractCount = validContracts.size,
+                updateTime = store.getLastUpdateTime(),
+                message =
+                    "F&O contracts updated: ${validContracts.size}"
+            )
         } catch (e: Exception) {
-            Result.failure(
-                IllegalStateException(
+            FnoContractUpdateResult(
+                success = false,
+                contractCount = 0,
+                updateTime = 0L,
+                message =
                     e.message ?: "F&O contract update failed."
-                )
             )
         }
     }
@@ -52,12 +63,11 @@ class FnoContractManager(
         if (contract.lotSize <= 0) return false
 
         return when (contract.contractType) {
-            com.nsepapertrade.model.FnoContractType.FUTURE -> true
+            FnoContractType.FUTURE -> true
 
-            com.nsepapertrade.model.FnoContractType.OPTION ->
+            FnoContractType.OPTION ->
                 contract.strikePrice >= 0.0 &&
-                    contract.optionType !=
-                    com.nsepapertrade.model.OptionType.NONE
+                    contract.optionType != OptionType.NONE
         }
     }
 }
