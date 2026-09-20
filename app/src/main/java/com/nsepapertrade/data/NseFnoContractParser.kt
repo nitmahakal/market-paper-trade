@@ -10,147 +10,174 @@ class NseFnoContractParser {
     fun parse(lines: List<String>): List<FnoContract> {
         if (lines.isEmpty()) return emptyList()
 
-        val header = splitCsvLine(lines.first())
+        val header = parseLine(lines.first())
 
-        val columns = header
-            .mapIndexed { index, name ->
-                name.trim().uppercase() to index
+        val columns = header.mapIndexed { index, name ->
+            name.trim().uppercase() to index
+        }.toMap()
+
+        fun getValue(
+            values: List<String>,
+            vararg names: String
+        ): String? {
+            for (name in names) {
+                val index = columns[name.uppercase()]
+                if (index != null) {
+                    return values.getOrNull(index)?.trim()
+                }
             }
-            .toMap()
+            return null
+        }
 
-        val result = mutableListOf<FnoContract>()
+        val contracts = mutableListOf<FnoContract>()
 
         for (line in lines.drop(1)) {
             if (line.isBlank()) continue
 
             try {
-                val values = splitCsvLine(line)
+                val values = parseLine(line)
 
-                fun value(name: String): String? {
-                    val index = columns[name] ?: return null
-                    return values.getOrNull(index)?.trim()
-                }
-
-                val symbol =
-                    value("SYMBOL")
-                        ?: value("UNDERLYING")
+                val underlying =
+                    getValue(
+                        values,
+                        "SYMBOL",
+                        "UNDERLYING"
+                    )?.takeIf { it.isNotBlank() }
                         ?: continue
 
                 val expiry =
-                    value("EXPIRY_DT")
-                        ?: value("EXPIRY")
+                    getValue(
+                        values,
+                        "EXPIRY_DT",
+                        "EXPIRY"
+                    )?.takeIf { it.isNotBlank() }
                         ?: continue
 
                 val instrument =
-                    value("INSTRUMENT")
-                        ?: value("INSTRUMENT_TYPE")
+                    getValue(
+                        values,
+                        "INSTRUMENT",
+                        "INSTRUMENT_TYPE"
+                    )?.uppercase()
                         ?: continue
-
-                val strike =
-                    value("STRIKE_PR")
-                        ?: value("STRIKE_PRICE")
-                        ?: "0"
-
-                val optionType =
-                    value("OPTION_TYP")
-                        ?: value("OPTION_TYPE")
-                        ?: "XX"
 
                 val lotSize =
-                    value("LOT_SIZE")
+                    getValue(
+                        values,
+                        "LOT_SIZE",
+                        "MARKET_LOT"
+                    )?.toIntOrNull()
                         ?: continue
 
-                val contractType = when {
-                    instrument.uppercase().contains("FUT") ->
-                        FnoContractType.FUTURE
+                val strikePrice =
+                    getValue(
+                        values,
+                        "STRIKE_PR",
+                        "STRIKE_PRICE"
+                    )?.toDoubleOrNull()
+                        ?: 0.0
 
-                    instrument.uppercase().contains("OPT") ->
-                        FnoContractType.OPTION
-
-                    else -> continue
-                }
-
-                val parsedOptionType = when (optionType.uppercase()) {
+                val optionType = when (
+                    getValue(
+                        values,
+                        "OPTION_TYP",
+                        "OPTION_TYPE"
+                    )?.uppercase()
+                ) {
                     "CE" -> OptionType.CE
                     "PE" -> OptionType.PE
                     else -> OptionType.NONE
                 }
 
-                val parsedStrike =
-                    strike.toDoubleOrNull() ?: 0.0
+                val contractType = when {
+                    instrument.contains("FUT") ->
+                        FnoContractType.FUTURE
 
-                val parsedLotSize =
-                    lotSize.toIntOrNull() ?: continue
+                    instrument.contains("OPT") ->
+                        FnoContractType.OPTION
 
-                val underlyingType =
-                    if (isIndex(symbol)) {
-                        FnoUnderlyingType.INDEX
-                    } else {
-                        FnoUnderlyingType.STOCK
-                    }
+                    else ->
+                        continue
+                }
 
-                result.add(
+                if (
+                    contractType == FnoContractType.OPTION &&
+                    optionType == OptionType.NONE
+                ) {
+                    continue
+                }
+
+                contracts.add(
                     FnoContract(
-                        underlying = symbol,
-                        underlyingType = underlyingType,
+                        underlying = underlying.uppercase(),
+                        underlyingType = detectUnderlyingType(
+                            underlying
+                        ),
                         contractType = contractType,
                         expiry = expiry,
-                        strikePrice = parsedStrike,
-                        optionType = parsedOptionType,
-                        lotSize = parsedLotSize
+                        strikePrice = strikePrice,
+                        optionType = optionType,
+                        lotSize = lotSize
                     )
                 )
             } catch (_: Exception) {
-                // Ignore malformed contract rows.
+                // Ignore malformed rows.
             }
         }
 
-        return result.distinctBy {
+        return contracts.distinctBy { contract ->
             listOf(
-                it.underlying.uppercase(),
-                it.underlyingType,
-                it.contractType,
-                it.expiry,
-                it.strikePrice,
-                it.optionType,
-                it.lotSize
-            )
+                contract.underlying.uppercase(),
+                contract.underlyingType.name,
+                contract.contractType.name,
+                contract.expiry,
+                contract.strikePrice,
+                contract.optionType.name,
+                contract.lotSize
+            ).joinToString("|")
         }
     }
 
-    private fun isIndex(symbol: String): Boolean {
-        return symbol.uppercase() in setOf(
+    private fun detectUnderlyingType(
+        underlying: String
+    ): FnoUnderlyingType {
+        return when (underlying.uppercase()) {
             "NIFTY",
             "BANKNIFTY",
             "FINNIFTY",
             "MIDCPNIFTY",
-            "NIFTYNXT50"
-        )
+            "NIFTYNXT50" ->
+                FnoUnderlyingType.INDEX
+
+            else ->
+                FnoUnderlyingType.STOCK
+        }
     }
 
-    private fun splitCsvLine(line: String): List<String> {
+    private fun parseLine(line: String): List<String> {
         val result = mutableListOf<String>()
         val current = StringBuilder()
         var insideQuotes = false
 
-        for (char in line) {
+        for (character in line) {
             when {
-                char == '"' -> {
+                character == '"' -> {
                     insideQuotes = !insideQuotes
                 }
 
-                char == ',' && !insideQuotes -> {
+                character == ',' && !insideQuotes -> {
                     result.add(current.toString())
                     current.clear()
                 }
 
                 else -> {
-                    current.append(char)
+                    current.append(character)
                 }
             }
         }
 
         result.add(current.toString())
+
         return result
     }
 }
