@@ -18,22 +18,46 @@ class FnoContractManager(
 
     suspend fun update(): Result<Int> {
         return try {
-            val contracts = provider.fetchContracts()
+            val downloadedContracts = provider.fetchContracts()
 
-            if (contracts.isEmpty()) {
+            val validContracts =
+                downloadedContracts.filter { isValidContract(it) }
+
+            if (validContracts.isEmpty()) {
                 return Result.failure(
-                    IllegalStateException("No F&O contracts received.")
+                    IllegalStateException(
+                        "NSE returned no valid F&O contracts."
+                    )
                 )
             }
 
-            store.saveContracts(contracts)
+            store.saveContracts(validContracts)
 
-            Result.success(contracts.size)
+            Result.success(validContracts.size)
         } catch (e: Exception) {
             Result.failure(
-                e.message?.let { IllegalStateException(it) }
-                    ?: IllegalStateException("F&O contract update failed.")
+                IllegalStateException(
+                    e.message ?: "F&O contract update failed."
+                )
             )
+        }
+    }
+
+    private fun isValidContract(
+        contract: FnoContract
+    ): Boolean {
+
+        if (contract.underlying.isBlank()) return false
+        if (contract.expiry.isBlank()) return false
+        if (contract.lotSize <= 0) return false
+
+        return when (contract.contractType) {
+            com.nsepapertrade.model.FnoContractType.FUTURE -> true
+
+            com.nsepapertrade.model.FnoContractType.OPTION ->
+                contract.strikePrice >= 0.0 &&
+                    contract.optionType !=
+                    com.nsepapertrade.model.OptionType.NONE
         }
     }
 }
