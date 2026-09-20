@@ -5,8 +5,10 @@ import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.model.FnoUnderlyingType
 
 class FnoContractRepository(
-    private val contracts: List<FnoContract> = emptyList()
+    contracts: List<FnoContract> = emptyList()
 ) {
+
+    private val contracts = contracts.toList()
 
     fun getAll(): List<FnoContract> =
         contracts.sortedWith(
@@ -22,12 +24,15 @@ class FnoContractRepository(
         contractType: FnoContractType? = null,
         underlyingType: FnoUnderlyingType? = null
     ): List<FnoContract> {
+
         val normalizedQuery = query.trim().uppercase()
 
         return getAll().filter { contract ->
+
             val matchesQuery =
                 normalizedQuery.isBlank() ||
-                    contract.underlying.uppercase().contains(normalizedQuery)
+                    contract.underlying.uppercase()
+                        .contains(normalizedQuery)
 
             val matchesContractType =
                 contractType == null ||
@@ -43,21 +48,30 @@ class FnoContractRepository(
         }
     }
 
-    fun getFutures(query: String = ""): List<FnoContract> =
+    fun getFutures(
+        query: String = ""
+    ): List<FnoContract> =
         search(
             query = query,
             contractType = FnoContractType.FUTURE
         )
 
-    fun getOptions(query: String = ""): List<FnoContract> =
+    fun getOptions(
+        query: String = ""
+    ): List<FnoContract> =
         search(
             query = query,
             contractType = FnoContractType.OPTION
         )
 
-    fun findExact(contract: FnoContract): FnoContract? =
+    fun findExact(
+        contract: FnoContract
+    ): FnoContract? =
         contracts.firstOrNull {
-            it.underlying.equals(contract.underlying, ignoreCase = true) &&
+            it.underlying.equals(
+                contract.underlying,
+                ignoreCase = true
+            ) &&
                 it.underlyingType == contract.underlyingType &&
                 it.contractType == contract.contractType &&
                 it.expiry == contract.expiry &&
