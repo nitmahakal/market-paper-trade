@@ -8,30 +8,44 @@ class FnoContractRepository(
     contracts: List<FnoContract> = emptyList()
 ) {
 
-    private val contracts = contracts.toList()
+    private val contracts =
+        contracts.toList()
 
-    fun getAll(): List<FnoContract> =
-        contracts.sortedWith(
-            compareBy<FnoContract> { it.underlying.uppercase() }
-                .thenBy { it.expiry }
-                .thenBy { it.contractType.name }
-                .thenBy { it.strikePrice }
-                .thenBy { it.optionType.name }
-        )
+    fun getAll(
+        includeInactive: Boolean = false
+    ): List<FnoContract> =
+        contracts
+            .filter { contract ->
+                includeInactive || contract.isActive
+            }
+            .sortedWith(
+                compareBy<FnoContract> {
+                    it.underlying.uppercase()
+                }
+                    .thenBy { it.expiry }
+                    .thenBy { it.contractType.name }
+                    .thenBy { it.strikePrice }
+                    .thenBy { it.optionType.name }
+            )
 
     fun search(
         query: String,
         contractType: FnoContractType? = null,
-        underlyingType: FnoUnderlyingType? = null
+        underlyingType: FnoUnderlyingType? = null,
+        includeInactive: Boolean = false
     ): List<FnoContract> {
 
-        val normalizedQuery = query.trim().uppercase()
+        val normalizedQuery =
+            query.trim().uppercase()
 
-        return getAll().filter { contract ->
+        return getAll(
+            includeInactive = includeInactive
+        ).filter { contract ->
 
             val matchesQuery =
                 normalizedQuery.isBlank() ||
-                    contract.underlying.uppercase()
+                    contract.underlying
+                        .uppercase()
                         .contains(normalizedQuery)
 
             val matchesContractType =
@@ -40,7 +54,8 @@ class FnoContractRepository(
 
             val matchesUnderlyingType =
                 underlyingType == null ||
-                    contract.underlyingType == underlyingType
+                    contract.underlyingType ==
+                    underlyingType
 
             matchesQuery &&
                 matchesContractType &&
@@ -53,7 +68,8 @@ class FnoContractRepository(
     ): List<FnoContract> =
         search(
             query = query,
-            contractType = FnoContractType.FUTURE
+            contractType =
+                FnoContractType.FUTURE
         )
 
     fun getOptions(
@@ -61,7 +77,8 @@ class FnoContractRepository(
     ): List<FnoContract> =
         search(
             query = query,
-            contractType = FnoContractType.OPTION
+            contractType =
+                FnoContractType.OPTION
         )
 
     fun findExact(
@@ -72,11 +89,17 @@ class FnoContractRepository(
                 contract.underlying,
                 ignoreCase = true
             ) &&
-                it.underlyingType == contract.underlyingType &&
-                it.contractType == contract.contractType &&
-                it.expiry == contract.expiry &&
-                it.strikePrice == contract.strikePrice &&
-                it.optionType == contract.optionType &&
-                it.lotSize == contract.lotSize
+                it.underlyingType ==
+                contract.underlyingType &&
+                it.contractType ==
+                contract.contractType &&
+                it.expiry ==
+                contract.expiry &&
+                it.strikePrice ==
+                contract.strikePrice &&
+                it.optionType ==
+                contract.optionType &&
+                it.lotSize ==
+                contract.lotSize
         }
 }
