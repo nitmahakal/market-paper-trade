@@ -23,8 +23,10 @@ data class FnoContract(
     val expiry: String,
     val strikePrice: Double = 0.0,
     val optionType: OptionType = OptionType.NONE,
-    val lotSize: Int
+    val lotSize: Int,
+    val isActive: Boolean = true
 ) {
+
     val symbol: String
         get() = buildString {
             append(underlying.uppercase())
@@ -32,14 +34,46 @@ data class FnoContract(
             append(expiry)
 
             when (contractType) {
-                FnoContractType.FUTURE -> append("_FUT")
+                FnoContractType.FUTURE -> {
+                    append("_FUT")
+                }
 
                 FnoContractType.OPTION -> {
                     append("_")
-                    append(strikePrice)
+                    append(formatStrike(strikePrice))
                     append("_")
                     append(optionType.name)
                 }
             }
         }
+
+    val displayName: String
+        get() = buildString {
+            append(underlying.uppercase())
+            append(" ")
+            append(expiry)
+
+            when (contractType) {
+                FnoContractType.FUTURE -> {
+                    append(" FUT")
+                }
+
+                FnoContractType.OPTION -> {
+                    append(" ")
+                    append(formatStrike(strikePrice))
+                    append(" ")
+                    append(optionType.name)
+                }
+            }
+        }
+
+    private fun formatStrike(
+        value: Double
+    ): String {
+        return if (value % 1.0 == 0.0) {
+            value.toLong().toString()
+        } else {
+            value.toString()
+        }
+    }
 }
