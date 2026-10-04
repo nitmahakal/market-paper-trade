@@ -2,23 +2,38 @@ package com.nsepapertrade.data
 
 import com.nsepapertrade.model.FnoContract
 
-class StoredFnoMarginDataProvider : FnoMarginDataProvider {
+class StoredFnoMarginDataProvider :
+    FnoMarginDataProvider {
 
-    private var snapshot =
-        FnoMarginSnapshot(
-            futureMargin = 0.0,
-            optionSellMargin = 0.0,
-            timestamp = 0L
-        )
+    private val margins =
+        mutableMapOf<String, FnoContractMargin>()
 
     fun update(
-        newSnapshot: FnoMarginSnapshot
+        margin: FnoContractMargin
     ) {
-        snapshot = newSnapshot
+        margins[
+            margin.contractSymbol.uppercase()
+        ] = margin
     }
 
-    fun getSnapshot(): FnoMarginSnapshot =
-        snapshot
+    fun updateAll(
+        newMargins: List<FnoContractMargin>
+    ) {
+        newMargins.forEach { margin ->
+            update(margin)
+        }
+    }
+
+    fun getMargin(
+        contractSymbol: String
+    ): FnoContractMargin? =
+        margins[
+            contractSymbol.uppercase()
+        ]
+
+    fun getAllMargins():
+        List<FnoContractMargin> =
+        margins.values.toList()
 
     override fun getFutureMargin(
         contract: FnoContract,
@@ -26,11 +41,17 @@ class StoredFnoMarginDataProvider : FnoMarginDataProvider {
         price: Double
     ): Double {
 
-        require(snapshot.futureMargin > 0.0) {
-            "F&O futures margin data is not available."
+        val margin =
+            getMargin(contract.symbol)
+
+        require(
+            margin != null &&
+                margin.futuresMargin > 0.0
+        ) {
+            "F&O futures margin data is not available for ${contract.displayName}."
         }
 
-        return snapshot.futureMargin * lots
+        return margin.futuresMargin * lots
     }
 
     override fun getOptionSellMargin(
@@ -39,10 +60,16 @@ class StoredFnoMarginDataProvider : FnoMarginDataProvider {
         price: Double
     ): Double {
 
-        require(snapshot.optionSellMargin > 0.0) {
-            "F&O option-writing margin data is not available."
+        val margin =
+            getMargin(contract.symbol)
+
+        require(
+            margin != null &&
+                margin.optionSellMargin > 0.0
+        ) {
+            "F&O option-writing margin data is not available for ${contract.displayName}."
         }
 
-        return snapshot.optionSellMargin * lots
+        return margin.optionSellMargin * lots
     }
 }
