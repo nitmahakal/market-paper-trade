@@ -79,6 +79,10 @@ class FnoTradePersistence(
                         "lastPrice",
                         position.lastPrice
                     )
+                    put(
+                        "reservedMargin",
+                        position.reservedMargin
+                    )
                 }
             )
         }
@@ -131,6 +135,11 @@ class FnoTradePersistence(
                             item.optDouble(
                                 "lastPrice"
                             )
+                            reservedMargin =
+                                item.optDouble(
+                                    "reservedMargin",
+                                    0.0
+                                )
                     )
                 )
             }
