@@ -131,15 +131,16 @@ class FnoTradePersistence(
                             item.optDouble(
                                 "averagePrice"
                             ),
+
                         lastPrice =
                             item.optDouble(
                                 "lastPrice"
+                            ),
+                        reservedMargin =
+                            item.optDouble(
+                                "reservedMargin",
+                                0.0
                             )
-                            reservedMargin =
-                                item.optDouble(
-                                    "reservedMargin",
-                                    0.0
-                                )
                     )
                 )
             }
