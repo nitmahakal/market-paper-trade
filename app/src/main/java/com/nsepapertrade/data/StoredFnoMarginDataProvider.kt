@@ -1,12 +1,26 @@
 package com.nsepapertrade.data
 
+import android.content.Context
 import com.nsepapertrade.model.FnoContract
 
-class StoredFnoMarginDataProvider :
-    FnoMarginDataProvider {
+class StoredFnoMarginDataProvider(
+    context: Context
+) : FnoMarginDataProvider {
+
+    private val store =
+        FnoMarginStore(context)
 
     private val margins =
         mutableMapOf<String, FnoContractMargin>()
+
+    init {
+        store.loadMargins()
+            .forEach { margin ->
+                margins[
+                    margin.contractSymbol.uppercase()
+                ] = margin
+            }
+    }
 
     fun update(
         margin: FnoContractMargin
@@ -14,14 +28,20 @@ class StoredFnoMarginDataProvider :
         margins[
             margin.contractSymbol.uppercase()
         ] = margin
+
+        save()
     }
 
     fun updateAll(
         newMargins: List<FnoContractMargin>
     ) {
         newMargins.forEach { margin ->
-            update(margin)
+            margins[
+                margin.contractSymbol.uppercase()
+            ] = margin
         }
+
+        save()
     }
 
     fun getMargin(
@@ -71,5 +91,11 @@ class StoredFnoMarginDataProvider :
         }
 
         return margin.optionSellMargin * lots
+    }
+
+    private fun save() {
+        store.saveMargins(
+            margins.values.toList()
+        )
     }
 }
