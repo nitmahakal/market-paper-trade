@@ -10,7 +10,8 @@ data class FnoPosition(
     val side: FnoPositionSide,
     val lots: Int,
     val averagePrice: Double,
-    val lastPrice: Double = 0.0
+    val lastPrice: Double = 0.0,
+    val reservedMargin: Double = 0.0
 ) {
 
     val quantity: Int
