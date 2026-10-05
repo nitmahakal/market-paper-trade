@@ -14,12 +14,21 @@ class NseSpanFileDownloader {
     }
 
     suspend fun download(
-        urlString: String
+        request: NseSpanReportRequest
     ): List<String> {
 
-        require(urlString.isNotBlank()) {
-            "SPAN file URL cannot be blank."
-        }
+        val url =
+            NseSpanArchiveUrlBuilder().build(
+                date = request.date,
+                reportType = request.reportType
+            )
+
+        return downloadUrl(url)
+    }
+
+    private fun downloadUrl(
+        urlString: String
+    ): List<String> {
 
         val connection =
             URL(urlString)
@@ -69,7 +78,6 @@ class NseSpanFileDownloader {
                             Charsets.UTF_8
                         )
                     ).use { reader ->
-
                         return reader.readLines()
                     }
                 }
