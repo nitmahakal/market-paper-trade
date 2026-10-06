@@ -5,8 +5,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import com.nsepapertrade.data.FnoOptionChainState
 import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.MarketDataState
+import com.nsepapertrade.data.NseFnoMarketDataProvider
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.data.YahooMarketDataProvider
@@ -14,11 +16,23 @@ import com.nsepapertrade.ui.PaperTradeScreen
 
 @Composable
 fun PaperTradeApp() {
+
     val marketDataScope = rememberCoroutineScope()
 
     val marketDataState = remember {
         MarketDataState(
             provider = YahooMarketDataProvider(),
+            scope = marketDataScope
+        )
+    }
+
+    val fnoMarketDataProvider = remember {
+        NseFnoMarketDataProvider()
+    }
+
+    val fnoOptionChainState = remember {
+        FnoOptionChainState(
+            provider = fnoMarketDataProvider,
             scope = marketDataScope
         )
     }
@@ -34,6 +48,7 @@ fun PaperTradeApp() {
     }
 
     LaunchedEffect(state.selectedInstrument) {
+
         val instrument = state.selectedInstrument
 
         if (instrument != null) {
