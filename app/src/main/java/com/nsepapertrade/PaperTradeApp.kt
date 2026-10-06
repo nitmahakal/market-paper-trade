@@ -34,194 +34,354 @@ import com.nsepapertrade.data.YahooMarketDataProvider
 import com.nsepapertrade.model.FnoContract
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.ui.PaperTradeScreen
+import androidx.compose.foundation.layout.heightIn
 
 @Composable
-fun PaperTradeApp() {
+private fun FnoHomePlaceholder(
+    selectedFnoSection: String,
+    futureContracts: List<FnoContract>,
+    optionCount: Int,
+    onFuturesSelected: () -> Unit,
+    onOptionsSelected: () -> Unit
+) {
 
-    var selectedSection by remember {
-        mutableStateOf("EQUITY")
+    var searchQuery by remember {
+        mutableStateOf("")
     }
 
-    var selectedFnoSection by remember {
-        mutableStateOf("FUTURES")
+    var selectedFuture by remember {
+        mutableStateOf<FnoContract?>(null)
     }
 
-    val marketDataScope = rememberCoroutineScope()
-
-    val marketDataState = remember {
-        MarketDataState(
-            provider = YahooMarketDataProvider(),
-            scope = marketDataScope
-        )
+    var lotsText by remember {
+        mutableStateOf("1")
     }
 
-    val fnoMarketDataProvider = remember {
-        NseFnoMarketDataProvider()
+    val filteredFutures = remember(
+        futureContracts,
+        searchQuery
+    ) {
+        val query = searchQuery.trim()
+
+        if (query.isBlank()) {
+            emptyList()
+        } else {
+            futureContracts.filter {
+                it.underlying.contains(
+                    query,
+                    ignoreCase = true
+                )
+            }
+        }
     }
 
-    val fnoOptionChainState = remember {
-        FnoOptionChainState(
-            provider = fnoMarketDataProvider,
-            scope = marketDataScope
+    val fnoMarketDataScope = rememberCoroutineScope()
+
+    val fnoMarketDataState = remember {
+        FnoMarketDataState(
+            provider = NseFnoMarketDataProvider(),
+            scope = fnoMarketDataScope
         )
     }
 
     val context = LocalContext.current
 
-    val fnoContractStore = remember(context) {
-        FnoContractStore(context)
+    val fnoTradeEngine = remember(context) {
+        com.nsepapertrade.data.FnoTradeEngine(context)
     }
 
-    val fnoContracts = remember(context) {
-        fnoContractStore.loadContracts()
-    }
+    LaunchedEffect(selectedFuture) {
 
-    val futureContracts = remember(fnoContracts) {
-        fnoContracts.filter {
-            it.contractType == FnoContractType.FUTURE
-        }
-    }
+        val contract = selectedFuture
 
-    val optionContracts = remember(fnoContracts) {
-        fnoContracts.filter {
-            it.contractType == FnoContractType.OPTION
-        }
-    }
-
-    val engine = remember(context) {
-        PaperTradeEngine(context)
-    }
-
-    val state = remember {
-        PaperTradeState(engine)
-    }
-
-    LaunchedEffect(state.selectedInstrument) {
-
-        val instrument = state.selectedInstrument
-
-        if (instrument != null) {
-            marketDataState.start(instrument)
+        if (contract != null) {
+            fnoMarketDataState.start(contract)
         } else {
-            marketDataState.stop()
+            fnoMarketDataState.stop()
         }
     }
 
-    val marketQuote = marketDataState.quote
-
-    val instrumentRepository = remember(context) {
-        InstrumentRepository(context)
-    }
-
-    val instruments = remember(instrumentRepository) {
-        instrumentRepository.getEquities()
-    }
+    val marketQuote = fnoMarketDataState.quote
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+            .fillMaxWidth()
+            .padding(top = 24.dp)
     ) {
 
+        Text(
+            text = "Trade F&O",
+            style = MaterialTheme.typography.headlineSmall
+        )
+
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
 
-            if (selectedSection == "EQUITY") {
+            if (selectedFnoSection == "FUTURES") {
 
                 Button(
-                    onClick = {
-                        selectedSection = "EQUITY"
-                    },
+                    onClick = onFuturesSelected,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Trade Equity")
+                    Text("Futures")
                 }
 
             } else {
 
                 OutlinedButton(
-                    onClick = {
-                        selectedSection = "EQUITY"
-                    },
+                    onClick = onFuturesSelected,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Trade Equity")
+                    Text("Futures")
                 }
             }
 
-            if (selectedSection == "FNO") {
+            if (selectedFnoSection == "OPTIONS") {
 
                 Button(
-                    onClick = {
-                        selectedSection = "FNO"
-                    },
+                    onClick = onOptionsSelected,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Trade F&O")
+                    Text("Options")
                 }
 
             } else {
 
                 OutlinedButton(
-                    onClick = {
-                        selectedSection = "FNO"
-                    },
+                    onClick = onOptionsSelected,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Trade F&O")
+                    Text("Options")
                 }
             }
         }
 
-        if (selectedSection == "EQUITY") {
+        if (selectedFnoSection == "FUTURES") {
 
-            PaperTradeScreen(
-                snapshot = state.snapshot,
-                positions = state.positions,
-                marketQuote = marketQuote,
-                message = state.message,
-                instruments = instruments,
-                selectedInstrument = state.selectedInstrument,
-
-                onInstrumentSelected = { instrument ->
-                    if (instrument == null) {
-                        state.clearSelectedInstrument()
-                    } else {
-                        state.selectInstrument(instrument)
-                    }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = {
+                    searchQuery = it
+                    selectedFuture = null
                 },
-
-                onBuy = { symbol, quantity, price ->
-                    state.buy(
-                        symbol = symbol,
-                        quantity = quantity,
-                        price = price
-                    )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                label = {
+                    Text("Search Futures")
                 },
-
-                onSell = { symbol, quantity, price ->
-                    state.sell(
-                        symbol = symbol,
-                        quantity = quantity,
-                        price = price
-                    )
-                }
+                placeholder = {
+                    Text("RELIANCE, NIFTY, BANKNIFTY...")
+                },
+                singleLine = true
             )
+
+            if (searchQuery.isNotBlank()) {
+
+                Text(
+                    text = "${filteredFutures.size} futures contracts",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .padding(top = 8.dp)
+                ) {
+
+                    items(
+                        items = filteredFutures,
+                        key = {
+                            it.symbol
+                        }
+                    ) { contract ->
+
+                        OutlinedButton(
+                            onClick = {
+                                selectedFuture = contract
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+
+                                Text(
+                                    text = contract.displayName
+                                )
+
+                                Text(
+                                    text =
+                                        "Expiry: ${contract.expiry}  •  Lot: ${contract.lotSize}",
+                                    style =
+                                        MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            selectedFuture?.let { contract ->
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                ) {
+
+                    Text(
+                        text = "Selected Contract",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = contract.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Text(
+                        text = "Underlying: ${contract.underlying}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "Expiry: ${contract.expiry}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "Lot Size: ${contract.lotSize}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    if (fnoMarketDataState.isLoading) {
+
+                        Text(
+                            text = "Loading LTP...",
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
+                    marketQuote?.let { quote ->
+
+                        Text(
+                            text = "LTP: ${"%.2f".format(quote.price)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
+                    if (fnoMarketDataState.errorMessage.isNotBlank()) {
+
+                        Text(
+                            text = fnoMarketDataState.errorMessage,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = lotsText,
+                        onValueChange = {
+                            lotsText =
+                                it.filter { character ->
+                                    character.isDigit()
+                                }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        label = {
+                            Text("Lots")
+                        },
+                        singleLine = true
+                    )
+
+                    val lots =
+                        lotsText.toIntOrNull() ?: 0
+
+                    val price =
+                        marketQuote?.price ?: 0.0
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(8.dp)
+                    ) {
+
+                        Button(
+                            onClick = {
+
+                                if (price > 0.0 && lots > 0) {
+
+                                    fnoTradeEngine.buy(
+                                        contract = contract,
+                                        lots = lots,
+                                        price = price
+                                    )
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled =
+                                price > 0.0 &&
+                                    lots > 0
+                        ) {
+                            Text("BUY")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+
+                                if (price > 0.0 && lots > 0) {
+
+                                    fnoTradeEngine.sell(
+                                        contract = contract,
+                                        lots = lots,
+                                        price = price
+                                    )
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled =
+                                price > 0.0 &&
+                                    lots > 0
+                        ) {
+                            Text("SELL")
+                        }
+                    }
+                }
+            }
 
         } else {
 
-            FnoHomePlaceholder(
-                selectedFnoSection = selectedFnoSection,
-                futureContracts = futureContracts,
-                optionCount = optionContracts.size,
-                onFuturesSelected = {
-                    selectedFnoSection = "FUTURES"
-                },
-                onOptionsSelected = {
-                    selectedFnoSection = "OPTIONS"
-                }
+            Text(
+                text = "Options",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 20.dp)
+            )
+
+            Text(
+                text = "Option chain will be connected next.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Text(
+                text = "Stored option contracts: $optionCount",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
     }
