@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.nsepapertrade.data.FnoContractStore
 import com.nsepapertrade.data.FnoOptionChainState
 import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.MarketDataState
@@ -27,6 +28,7 @@ import com.nsepapertrade.data.NseFnoMarketDataProvider
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.data.YahooMarketDataProvider
+import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.ui.PaperTradeScreen
 
 @Composable
@@ -34,6 +36,10 @@ fun PaperTradeApp() {
 
     var selectedSection by remember {
         mutableStateOf("EQUITY")
+    }
+
+    var selectedFnoSection by remember {
+        mutableStateOf("FUTURES")
     }
 
     val marketDataScope = rememberCoroutineScope()
@@ -57,6 +63,26 @@ fun PaperTradeApp() {
     }
 
     val context = LocalContext.current
+
+    val fnoContractStore = remember(context) {
+        FnoContractStore(context)
+    }
+
+    val fnoContracts = remember(context) {
+        fnoContractStore.loadContracts()
+    }
+
+    val futureContracts = remember(fnoContracts) {
+        fnoContracts.filter {
+            it.contractType == FnoContractType.FUTURE
+        }
+    }
+
+    val optionContracts = remember(fnoContracts) {
+        fnoContracts.filter {
+            it.contractType == FnoContractType.OPTION
+        }
+    }
 
     val engine = remember(context) {
         PaperTradeEngine(context)
@@ -182,13 +208,29 @@ fun PaperTradeApp() {
 
         } else {
 
-            FnoHomePlaceholder()
+            FnoHomePlaceholder(
+                selectedFnoSection = selectedFnoSection,
+                futureCount = futureContracts.size,
+                optionCount = optionContracts.size,
+                onFuturesSelected = {
+                    selectedFnoSection = "FUTURES"
+                },
+                onOptionsSelected = {
+                    selectedFnoSection = "OPTIONS"
+                }
+            )
         }
     }
 }
 
 @Composable
-private fun FnoHomePlaceholder() {
+private fun FnoHomePlaceholder(
+    selectedFnoSection: String,
+    futureCount: Int,
+    optionCount: Int,
+    onFuturesSelected: () -> Unit,
+    onOptionsSelected: () -> Unit
+) {
 
     Column(
         modifier = Modifier
@@ -207,8 +249,60 @@ private fun FnoHomePlaceholder() {
             modifier = Modifier.padding(top = 8.dp)
         )
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+
+            if (selectedFnoSection == "FUTURES") {
+
+                Button(
+                    onClick = onFuturesSelected,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Futures")
+                }
+
+            } else {
+
+                OutlinedButton(
+                    onClick = onFuturesSelected,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Futures")
+                }
+            }
+
+            if (selectedFnoSection == "OPTIONS") {
+
+                Button(
+                    onClick = onOptionsSelected,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Options")
+                }
+
+            } else {
+
+                OutlinedButton(
+                    onClick = onOptionsSelected,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Options")
+                }
+            }
+        }
+
         Text(
-            text = "F&O trading screen will be connected next.",
+            text = "Futures contracts loaded: $futureCount",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 20.dp)
+        )
+
+        Text(
+            text = "Options contracts loaded: $optionCount",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 8.dp)
         )
