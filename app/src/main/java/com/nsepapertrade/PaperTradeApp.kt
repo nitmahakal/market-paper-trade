@@ -28,6 +28,7 @@ import com.nsepapertrade.data.FnoContractStore
 import com.nsepapertrade.data.FnoTradeEngine
 import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.MarketDataState
+import com.nsepapertrade.data.MarketQuote
 import com.nsepapertrade.data.NseFnoMarketDataProvider
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
@@ -271,8 +272,9 @@ private fun FnoHomePlaceholder(
     }
 
     var marketQuote by remember {
-        mutableStateOf<com.nsepapertrade.model.MarketQuote?>(null)
+        mutableStateOf<MarketQuote?>(null)
     }
+
 
     var isLoading by remember {
         mutableStateOf(false)
