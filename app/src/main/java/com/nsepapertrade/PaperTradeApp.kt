@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +31,7 @@ import com.nsepapertrade.data.NseFnoMarketDataProvider
 import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.data.YahooMarketDataProvider
+import com.nsepapertrade.model.FnoContract
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.ui.PaperTradeScreen
 
@@ -210,7 +214,7 @@ fun PaperTradeApp() {
 
             FnoHomePlaceholder(
                 selectedFnoSection = selectedFnoSection,
-                futureCount = futureContracts.size,
+                futureContracts = futureContracts,
                 optionCount = optionContracts.size,
                 onFuturesSelected = {
                     selectedFnoSection = "FUTURES"
@@ -226,11 +230,37 @@ fun PaperTradeApp() {
 @Composable
 private fun FnoHomePlaceholder(
     selectedFnoSection: String,
-    futureCount: Int,
+    futureContracts: List<FnoContract>,
     optionCount: Int,
     onFuturesSelected: () -> Unit,
     onOptionsSelected: () -> Unit
 ) {
+
+    var searchQuery by remember {
+        mutableStateOf("")
+    }
+
+    var selectedFuture by remember {
+        mutableStateOf<FnoContract?>(null)
+    }
+
+    val filteredFutures = remember(
+        futureContracts,
+        searchQuery
+    ) {
+        val query = searchQuery.trim()
+
+        if (query.isBlank()) {
+            futureContracts
+        } else {
+            futureContracts.filter {
+                it.underlying.contains(
+                    query,
+                    ignoreCase = true
+                )
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -241,12 +271,6 @@ private fun FnoHomePlaceholder(
         Text(
             text = "Trade F&O",
             style = MaterialTheme.typography.headlineSmall
-        )
-
-        Text(
-            text = "Futures and Options",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 8.dp)
         )
 
         Row(
@@ -295,16 +319,127 @@ private fun FnoHomePlaceholder(
             }
         }
 
-        Text(
-            text = "Futures contracts loaded: $futureCount",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 20.dp)
-        )
+        if (selectedFnoSection == "FUTURES") {
 
-        Text(
-            text = "Options contracts loaded: $optionCount",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = {
+                    searchQuery = it
+                    selectedFuture = null
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                label = {
+                    Text("Search Futures")
+                },
+                placeholder = {
+                    Text("RELIANCE, NIFTY, BANKNIFTY...")
+                },
+                singleLine = true
+            )
+
+            Text(
+                text = "${filteredFutures.size} futures contracts",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(top = 8.dp)
+            ) {
+
+                items(
+                    items = filteredFutures,
+                    key = {
+                        it.symbol
+                    }
+                ) { contract ->
+
+                    OutlinedButton(
+                        onClick = {
+                            selectedFuture = contract
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+
+                            Text(
+                                text = contract.displayName
+                            )
+
+                            Text(
+                                text = "Expiry: ${contract.expiry}  •  Lot: ${contract.lotSize}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+
+            selectedFuture?.let { contract ->
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                ) {
+
+                    Text(
+                        text = "Selected Contract",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = contract.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Text(
+                        text = "Underlying: ${contract.underlying}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "Expiry: ${contract.expiry}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "Lot Size: ${contract.lotSize}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+        } else {
+
+            Text(
+                text = "Options",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 20.dp)
+            )
+
+            Text(
+                text = "Option chain will be connected next.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Text(
+                text = "Stored option contracts: $optionCount",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }
