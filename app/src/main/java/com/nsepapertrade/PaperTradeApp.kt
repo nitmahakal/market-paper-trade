@@ -42,214 +42,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 @Composable
-fun PaperTradeApp() {
-
-    var selectedSection by remember {
-        mutableStateOf("EQUITY")
-    }
-
-    var selectedFnoSection by remember {
-        mutableStateOf("FUTURES")
-    }
-
-    val marketDataScope = rememberCoroutineScope()
-
-    val marketDataState = remember {
-        MarketDataState(
-            provider = YahooMarketDataProvider(),
-            scope = marketDataScope
-        )
-    }
-
-    val fnoMarketDataProvider = remember {
-        NseFnoMarketDataProvider()
-    }
-
-    val context = LocalContext.current
-
-    val engine = remember(context) {
-        PaperTradeEngine(context)
-    }
-
-    val state = remember {
-        PaperTradeState(engine)
-    }
-
-    LaunchedEffect(state.selectedInstrument) {
-
-        val instrument = state.selectedInstrument
-
-        if (instrument != null) {
-            marketDataState.start(instrument)
-        } else {
-            marketDataState.stop()
-        }
-    }
-
-    val marketQuote = marketDataState.quote
-
-    val instrumentRepository = remember(context) {
-        InstrumentRepository(context)
-    }
-
-    val instruments = remember(instrumentRepository) {
-        instrumentRepository.getEquities()
-    }
-
-    val fnoContracts = remember(context) {
-        FnoContractStore(context)
-            .loadContracts()
-    }
-
-    val futureContracts = remember(fnoContracts) {
-        fnoContracts.filter {
-            it.contractType ==
-                FnoContractType.FUTURE
-        }
-    }
-
-    val optionCount = remember(fnoContracts) {
-        fnoContracts.count {
-            it.contractType ==
-                FnoContractType.OPTION
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(8.dp)
-        ) {
-
-            if (selectedSection == "EQUITY") {
-
-                Button(
-                    onClick = {
-                        selectedSection = "EQUITY"
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Trade Equity")
-                }
-
-            } else {
-
-                OutlinedButton(
-                    onClick = {
-                        selectedSection = "EQUITY"
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Trade Equity")
-                }
-            }
-
-            if (selectedSection == "FNO") {
-
-                Button(
-                    onClick = {
-                        selectedSection = "FNO"
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Trade F&O")
-                }
-
-            } else {
-
-                OutlinedButton(
-                    onClick = {
-                        selectedSection = "FNO"
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Trade F&O")
-                }
-            }
-        }
-
-        if (selectedSection == "EQUITY") {
-
-            PaperTradeScreen(
-                snapshot = state.snapshot,
-                positions = state.positions,
-                marketQuote = marketQuote,
-                message = state.message,
-                instruments = instruments,
-                selectedInstrument =
-                    state.selectedInstrument,
-
-                onInstrumentSelected = {
-                    instrument ->
-
-                    if (instrument == null) {
-                        state.clearSelectedInstrument()
-                    } else {
-                        state.selectInstrument(
-                            instrument
-                        )
-                    }
-                },
-
-                onBuy = {
-                    symbol,
-                    quantity,
-                    price ->
-
-                    state.buy(
-                        symbol = symbol,
-                        quantity = quantity,
-                        price = price
-                    )
-                },
-
-                onSell = {
-                    symbol,
-                    quantity,
-                    price ->
-
-                    state.sell(
-                        symbol = symbol,
-                        quantity = quantity,
-                        price = price
-                    )
-                }
-            )
-
-        } else {
-
-            FnoHomePlaceholder(
-                selectedFnoSection =
-                    selectedFnoSection,
-
-                futureContracts =
-                    futureContracts,
-
-                optionCount =
-                    optionCount,
-
-                onFuturesSelected = {
-                    selectedFnoSection = "FUTURES"
-                },
-
-                onOptionsSelected = {
-                    selectedFnoSection = "OPTIONS"
-                },
-
-                provider =
-                    fnoMarketDataProvider
-            )
-        }
-    }
-}
-
-@Composable
 private fun FnoHomePlaceholder(
     selectedFnoSection: String,
     futureContracts: List<FnoContract>,
@@ -274,7 +66,6 @@ private fun FnoHomePlaceholder(
     var marketQuote by remember {
         mutableStateOf<MarketQuote?>(null)
     }
-
 
     var isLoading by remember {
         mutableStateOf(false)
@@ -338,18 +129,20 @@ private fun FnoHomePlaceholder(
                 marketQuote = result
 
                 if (result == null) {
+
                     errorMessage =
                         "No market data available."
+
                 } else {
+
                     errorMessage = ""
 
-                    fnoTradeEngine
-                        .updateMarketPrice(
-                            contractSymbol =
-                                contract.symbol,
-                            price =
-                                result.price
-                        )
+                    fnoTradeEngine.updateMarketPrice(
+                        contractSymbol =
+                            contract.symbol,
+                        price =
+                            result.price
+                    )
                 }
 
             } catch (e: Exception) {
@@ -370,13 +163,21 @@ private fun FnoHomePlaceholder(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 24.dp)
+            .padding(top = 20.dp)
     ) {
 
         Text(
             text = "Trade F&O",
             style =
                 MaterialTheme.typography.headlineSmall
+        )
+
+        Text(
+            text = "Futures & Options",
+            style =
+                MaterialTheme.typography.bodyMedium,
+            modifier =
+                Modifier.padding(top = 2.dp)
         )
 
         Row(
@@ -390,51 +191,55 @@ private fun FnoHomePlaceholder(
             if (selectedFnoSection == "FUTURES") {
 
                 Button(
-                    onClick =
-                        onFuturesSelected,
+                    onClick = onFuturesSelected,
                     modifier =
                         Modifier.weight(1f)
                 ) {
-                    Text("Futures")
+                    Text("FUTURES")
                 }
 
             } else {
 
                 OutlinedButton(
-                    onClick =
-                        onFuturesSelected,
+                    onClick = onFuturesSelected,
                     modifier =
                         Modifier.weight(1f)
                 ) {
-                    Text("Futures")
+                    Text("FUTURES")
                 }
             }
 
             if (selectedFnoSection == "OPTIONS") {
 
                 Button(
-                    onClick =
-                        onOptionsSelected,
+                    onClick = onOptionsSelected,
                     modifier =
                         Modifier.weight(1f)
                 ) {
-                    Text("Options")
+                    Text("OPTIONS")
                 }
 
             } else {
 
                 OutlinedButton(
-                    onClick =
-                        onOptionsSelected,
+                    onClick = onOptionsSelected,
                     modifier =
                         Modifier.weight(1f)
                 ) {
-                    Text("Options")
+                    Text("OPTIONS")
                 }
             }
         }
 
         if (selectedFnoSection == "FUTURES") {
+
+            Text(
+                text = "Select Futures Contract",
+                style =
+                    MaterialTheme.typography.titleMedium,
+                modifier =
+                    Modifier.padding(top = 20.dp)
+            )
 
             OutlinedTextField(
                 value = searchQuery,
@@ -444,19 +249,20 @@ private fun FnoHomePlaceholder(
                     selectedFuture = null
                     marketQuote = null
                     tradeMessage = ""
+                    errorMessage = ""
                 },
 
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp),
+                    .padding(top = 8.dp),
 
                 label = {
-                    Text("Search Futures")
+                    Text("Search underlying")
                 },
 
                 placeholder = {
                     Text(
-                        "RELIANCE, NIFTY, BANKNIFTY..."
+                        "RELIANCE / NIFTY / BANKNIFTY"
                     )
                 },
 
@@ -467,10 +273,12 @@ private fun FnoHomePlaceholder(
 
                 Text(
                     text =
-                        "${filteredFutures.size} futures contracts",
+                        "${filteredFutures.size} contracts found",
 
                     style =
-                        MaterialTheme.typography.bodyMedium,
+                        MaterialTheme
+                            .typography
+                            .bodySmall,
 
                     modifier =
                         Modifier.padding(top = 8.dp)
@@ -482,7 +290,7 @@ private fun FnoHomePlaceholder(
                         .heightIn(
                             max = 220.dp
                         )
-                        .padding(top = 8.dp)
+                        .padding(top = 6.dp)
                 ) {
 
                     items(
@@ -502,7 +310,7 @@ private fun FnoHomePlaceholder(
                                 Modifier
                                     .fillMaxWidth()
                                     .padding(
-                                        vertical = 4.dp
+                                        vertical = 3.dp
                                     )
                         ) {
 
@@ -513,17 +321,27 @@ private fun FnoHomePlaceholder(
 
                                 Text(
                                     text =
-                                        contract.displayName
-                                )
-
-                                Text(
-                                    text =
-                                        "Expiry: ${contract.expiry}  •  Lot: ${contract.lotSize}",
+                                        contract.displayName,
 
                                     style =
                                         MaterialTheme
                                             .typography
-                                            .bodySmall
+                                            .bodyLarge
+                                )
+
+                                Text(
+                                    text =
+                                        "Expiry ${contract.expiry}   •   Lot ${contract.lotSize}",
+
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .bodySmall,
+
+                                    modifier =
+                                        Modifier.padding(
+                                            top = 2.dp
+                                        )
                                 )
                             }
                         }
@@ -533,287 +351,370 @@ private fun FnoHomePlaceholder(
 
             selectedFuture?.let { contract ->
 
-                Column(
+                androidx.compose.material3.Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp)
+                        .padding(top = 16.dp)
                 ) {
 
-                    Text(
-                        text =
-                            "Selected Contract",
-
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleMedium
-                    )
-
-                    Text(
-                        text =
-                            contract.displayName,
-
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyLarge,
-
-                        modifier =
-                            Modifier.padding(top = 4.dp)
-                    )
-
-                    Text(
-                        text =
-                            "Underlying: ${contract.underlying}",
-
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium
-                    )
-
-                    Text(
-                        text =
-                            "Expiry: ${contract.expiry}",
-
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium
-                    )
-
-                    Text(
-                        text =
-                            "Lot Size: ${contract.lotSize}",
-
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium
-                    )
-
-                    if (isLoading) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
 
                         Text(
-                            text =
-                                "Updating LTP...",
-
-                            modifier =
-                                Modifier.padding(top = 8.dp)
+                            text = "SELECTED CONTRACT",
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .labelMedium
                         )
-                    }
-
-                    marketQuote?.let { quote ->
 
                         Text(
                             text =
-                                "LTP: ${
-                                    "%.2f"
-                                        .format(
-                                            quote.price
-                                        )
-                                }",
+                                contract.displayName,
 
                             style =
                                 MaterialTheme
                                     .typography
-                                    .titleMedium,
+                                    .titleLarge,
 
                             modifier =
-                                Modifier.padding(top = 8.dp)
+                                Modifier.padding(top = 4.dp)
                         )
-                    }
-
-                    if (errorMessage.isNotBlank()) {
-
-                        Text(
-                            text = errorMessage,
-
-                            modifier =
-                                Modifier.padding(
-                                    top = 8.dp
-                                )
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = lotsText,
-
-                        onValueChange = {
-                            lotsText =
-                                it.filter {
-                                    character ->
-                                    character.isDigit()
-                                }
-                        },
-
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-
-                        label = {
-                            Text("Lots")
-                        },
-
-                        singleLine = true
-                    )
-
-                    val lots =
-                        lotsText.toIntOrNull()
-                            ?: 0
-
-                    val price =
-                        marketQuote?.price
-                            ?: 0.0
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-
-                        horizontalArrangement =
-                            Arrangement.spacedBy(8.dp)
-                    ) {
-
-                        Button(
-                            onClick = {
-
-                                if (
-                                    price > 0.0 &&
-                                    lots > 0
-                                ) {
-
-                                    val result =
-                                        fnoTradeEngine.buy(
-                                            contract =
-                                                contract,
-                                            lots =
-                                                lots,
-                                            price =
-                                                price
-                                        )
-
-                                    tradeMessage =
-                                        if (
-                                            result.isSuccess
-                                        ) {
-                                            "BUY successful"
-                                        } else {
-                                            result
-                                                .exceptionOrNull()
-                                                ?.message
-                                                ?: "BUY failed"
-                                        }
-                                }
-                            },
-
-                            modifier =
-                                Modifier.weight(1f),
-
-                            enabled =
-                                price > 0.0 &&
-                                    lots > 0
-                        ) {
-                            Text("BUY")
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-
-                                if (
-                                    price > 0.0 &&
-                                    lots > 0
-                                ) {
-
-                                    val result =
-                                        fnoTradeEngine.sell(
-                                            contract =
-                                                contract,
-                                            lots =
-                                                lots,
-                                            price =
-                                                price
-                                        )
-
-                                    tradeMessage =
-                                        if (
-                                            result.isSuccess
-                                        ) {
-                                            "SELL successful"
-                                        } else {
-                                            result
-                                                .exceptionOrNull()
-                                                ?.message
-                                                ?: "SELL failed"
-                                        }
-                                }
-                            },
-
-                            modifier =
-                                Modifier.weight(1f),
-
-                            enabled =
-                                price > 0.0 &&
-                                    lots > 0
-                        ) {
-                            Text("SELL")
-                        }
-                    }
-
-                    if (tradeMessage.isNotBlank()) {
 
                         Text(
                             text =
-                                tradeMessage,
+                                "Underlying  ${contract.underlying}",
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodyMedium,
 
                             modifier =
-                                Modifier.padding(
-                                    top = 8.dp
-                                )
+                                Modifier.padding(top = 10.dp)
                         )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+                            horizontalArrangement =
+                                Arrangement.spacedBy(8.dp)
+                        ) {
+
+                            Column(
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+
+                                Text(
+                                    text = "EXPIRY",
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .labelSmall
+                                )
+
+                                Text(
+                                    text =
+                                        contract.expiry,
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .bodyLarge
+                                )
+                            }
+
+                            Column(
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+
+                                Text(
+                                    text = "LOT SIZE",
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .labelSmall
+                                )
+
+                                Text(
+                                    text =
+                                        contract.lotSize
+                                            .toString(),
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .bodyLarge
+                                )
+                            }
+
+                            Column(
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+
+                                Text(
+                                    text = "LTP",
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .labelSmall
+                                )
+
+                                Text(
+                                    text =
+                                        marketQuote?.let {
+                                            "%.2f".format(
+                                                it.price
+                                            )
+                                        }
+                                            ?: "--",
+
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .titleMedium
+                                )
+                            }
+                        }
+
+                        if (isLoading) {
+
+                            Text(
+                                text =
+                                    "Updating market price...",
+
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .bodySmall,
+
+                                modifier =
+                                    Modifier.padding(
+                                        top = 10.dp
+                                    )
+                            )
+                        }
+
+                        if (
+                            errorMessage.isNotBlank()
+                        ) {
+
+                            Text(
+                                text = errorMessage,
+
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .bodySmall,
+
+                                modifier =
+                                    Modifier.padding(
+                                        top = 10.dp
+                                    )
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = lotsText,
+
+                            onValueChange = {
+                                lotsText =
+                                    it.filter {
+                                        character ->
+                                        character.isDigit()
+                                    }
+                            },
+
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+
+                            label = {
+                                Text("Lots")
+                            },
+
+                            placeholder = {
+                                Text("Enter number of lots")
+                            },
+
+                            singleLine = true
+                        )
+
+                        val lots =
+                            lotsText.toIntOrNull()
+                                ?: 0
+
+                        val price =
+                            marketQuote?.price
+                                ?: 0.0
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            horizontalArrangement =
+                                Arrangement.spacedBy(10.dp)
+                        ) {
+
+                            Button(
+                                onClick = {
+
+                                    if (
+                                        price > 0.0 &&
+                                        lots > 0
+                                    ) {
+
+                                        val result =
+                                            fnoTradeEngine.buy(
+                                                contract =
+                                                    contract,
+                                                lots =
+                                                    lots,
+                                                price =
+                                                    price
+                                            )
+
+                                        tradeMessage =
+                                            if (
+                                                result.isSuccess
+                                            ) {
+                                                "BUY successful"
+                                            } else {
+                                                result
+                                                    .exceptionOrNull()
+                                                    ?.message
+                                                    ?: "BUY failed"
+                                            }
+                                    }
+                                },
+
+                                modifier =
+                                    Modifier.weight(1f),
+
+                                enabled =
+                                    price > 0.0 &&
+                                        lots > 0
+                            ) {
+                                Text("BUY")
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+
+                                    if (
+                                        price > 0.0 &&
+                                        lots > 0
+                                    ) {
+
+                                        val result =
+                                            fnoTradeEngine.sell(
+                                                contract =
+                                                    contract,
+                                                lots =
+                                                    lots,
+                                                price =
+                                                    price
+                                            )
+
+                                        tradeMessage =
+                                            if (
+                                                result.isSuccess
+                                            ) {
+                                                "SELL successful"
+                                            } else {
+                                                result
+                                                    .exceptionOrNull()
+                                                    ?.message
+                                                    ?: "SELL failed"
+                                            }
+                                    }
+                                },
+
+                                modifier =
+                                    Modifier.weight(1f),
+
+                                enabled =
+                                    price > 0.0 &&
+                                        lots > 0
+                            ) {
+                                Text("SELL")
+                            }
+                        }
+
+                        if (
+                            tradeMessage.isNotBlank()
+                        ) {
+
+                            Text(
+                                text = tradeMessage,
+
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .bodyMedium,
+
+                                modifier =
+                                    Modifier.padding(
+                                        top = 10.dp
+                                    )
+                            )
+                        }
                     }
                 }
             }
 
         } else {
 
-            Text(
-                text = "Options",
+            androidx.compose.material3.Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp)
+            ) {
 
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleLarge,
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
 
-                modifier =
-                    Modifier.padding(top = 20.dp)
-            )
+                    Text(
+                        text = "OPTIONS",
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleLarge
+                    )
 
-            Text(
-                text =
-                    "Option chain will be connected next.",
+                    Text(
+                        text =
+                            "Option Chain is the next step.",
 
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyMedium,
 
-                modifier =
-                    Modifier.padding(top = 8.dp)
-            )
+                        modifier =
+                            Modifier.padding(top = 8.dp)
+                    )
 
-            Text(
-                text =
-                    "Stored option contracts: $optionCount",
+                    Text(
+                        text =
+                            "Stored option contracts: $optionCount",
 
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodySmall,
 
-                modifier =
-                    Modifier.padding(top = 8.dp)
-            )
+                        modifier =
+                            Modifier.padding(top = 10.dp)
+                    )
+                }
+            }
         }
     }
 }
