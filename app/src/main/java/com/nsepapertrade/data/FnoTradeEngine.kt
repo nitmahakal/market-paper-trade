@@ -15,7 +15,9 @@ class FnoTradeEngine(
     context: Context,
     private val marginCalculator: FnoMarginCalculator =
         DefaultFnoMarginCalculator(
-            UnavailableFnoMarginDataProvider()
+            StoredFnoMarginDataProvider(
+                context
+            )
         )
 ) {
 
