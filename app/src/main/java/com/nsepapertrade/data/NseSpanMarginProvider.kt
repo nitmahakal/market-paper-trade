@@ -4,7 +4,9 @@ class NseSpanMarginProvider(
     private val downloader: NseSpanFileDownloader =
         NseSpanFileDownloader(),
     private val dateResolver: NseSpanDateResolver =
-        NseSpanDateResolver()
+        NseSpanDateResolver(),
+    private val parser: NseSpanMarginParser =
+        NseSpanMarginParser()
 ) : FnoMarginProvider {
 
     override suspend fun fetchMargins():
@@ -33,12 +35,23 @@ class NseSpanMarginProvider(
                             )
                         )
 
-                    if (lines.isNotEmpty()) {
-                        throw IllegalStateException(
-                            "NSE SPAN file downloaded successfully, " +
-                                "but its exact record format still needs " +
-                                "to be parsed before margin values can be used."
-                        )
+                    if (lines.isEmpty()) {
+                        continue
+                    }
+
+                    val records =
+                        parser.parse(lines)
+
+                    if (records.isEmpty()) {
+                        continue
+                    }
+
+                    val margins =
+                        NseSpanMarginMapper()
+                            .map(records)
+
+                    if (margins.isNotEmpty()) {
+                        return margins
                     }
 
                 } catch (e: Exception) {
@@ -49,7 +62,7 @@ class NseSpanMarginProvider(
 
         throw IllegalStateException(
             lastError?.message
-                ?: "No NSE SPAN file could be downloaded."
+                ?: "No valid NSE SPAN margin records found."
         )
     }
 }
