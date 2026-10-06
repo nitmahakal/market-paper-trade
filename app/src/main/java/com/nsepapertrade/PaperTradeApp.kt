@@ -42,6 +42,254 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 @Composable
+fun PaperTradeApp() {
+
+    var selectedSection by remember {
+        mutableStateOf("EQUITY")
+    }
+
+    var selectedFnoSection by remember {
+        mutableStateOf("FUTURES")
+    }
+
+    val marketDataScope = rememberCoroutineScope()
+
+    val marketDataState = remember {
+        MarketDataState(
+            provider = YahooMarketDataProvider(),
+            scope = marketDataScope
+        )
+    }
+
+    val fnoMarketDataProvider = remember {
+        NseFnoMarketDataProvider()
+    }
+
+    val context = LocalContext.current
+
+    val engine = remember(context) {
+        PaperTradeEngine(context)
+    }
+
+    val state = remember {
+        PaperTradeState(engine)
+    }
+
+    LaunchedEffect(state.selectedInstrument) {
+
+        val instrument =
+            state.selectedInstrument
+
+        if (instrument != null) {
+            marketDataState.start(
+                instrument
+            )
+        } else {
+            marketDataState.stop()
+        }
+    }
+
+    val marketQuote =
+        marketDataState.quote
+
+    val instrumentRepository =
+        remember(context) {
+            InstrumentRepository(context)
+        }
+
+    val instruments =
+        remember(instrumentRepository) {
+            instrumentRepository.getEquities()
+        }
+
+    val fnoContracts =
+        remember(context) {
+            FnoContractStore(context)
+                .loadContracts()
+        }
+
+    val futureContracts =
+        remember(fnoContracts) {
+            fnoContracts.filter {
+                it.contractType ==
+                    FnoContractType.FUTURE
+            }
+        }
+
+    val optionCount =
+        remember(fnoContracts) {
+            fnoContracts.count {
+                it.contractType ==
+                    FnoContractType.OPTION
+            }
+        }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+
+        Row(
+            modifier =
+                Modifier.fillMaxWidth(),
+            horizontalArrangement =
+                Arrangement.spacedBy(8.dp)
+        ) {
+
+            if (
+                selectedSection ==
+                    "EQUITY"
+            ) {
+
+                Button(
+                    onClick = {
+                        selectedSection =
+                            "EQUITY"
+                    },
+                    modifier =
+                        Modifier.weight(1f)
+                ) {
+                    Text("Trade Equity")
+                }
+
+            } else {
+
+                OutlinedButton(
+                    onClick = {
+                        selectedSection =
+                            "EQUITY"
+                    },
+                    modifier =
+                        Modifier.weight(1f)
+                ) {
+                    Text("Trade Equity")
+                }
+            }
+
+            if (
+                selectedSection ==
+                    "FNO"
+            ) {
+
+                Button(
+                    onClick = {
+                        selectedSection =
+                            "FNO"
+                    },
+                    modifier =
+                        Modifier.weight(1f)
+                ) {
+                    Text("Trade F&O")
+                }
+
+            } else {
+
+                OutlinedButton(
+                    onClick = {
+                        selectedSection =
+                            "FNO"
+                    },
+                    modifier =
+                        Modifier.weight(1f)
+                ) {
+                    Text("Trade F&O")
+                }
+            }
+        }
+
+        if (
+            selectedSection ==
+                "EQUITY"
+        ) {
+
+            PaperTradeScreen(
+                snapshot =
+                    state.snapshot,
+                positions =
+                    state.positions,
+                marketQuote =
+                    marketQuote,
+                message =
+                    state.message,
+                instruments =
+                    instruments,
+                selectedInstrument =
+                    state.selectedInstrument,
+
+                onInstrumentSelected = {
+                    instrument ->
+
+                    if (instrument == null) {
+                        state.clearSelectedInstrument()
+                    } else {
+                        state.selectInstrument(
+                            instrument
+                        )
+                    }
+                },
+
+                onBuy = {
+                    symbol,
+                    quantity,
+                    price ->
+
+                    state.buy(
+                        symbol =
+                            symbol,
+                        quantity =
+                            quantity,
+                        price =
+                            price
+                    )
+                },
+
+                onSell = {
+                    symbol,
+                    quantity,
+                    price ->
+
+                    state.sell(
+                        symbol =
+                            symbol,
+                        quantity =
+                            quantity,
+                        price =
+                            price
+                    )
+                }
+            )
+
+        } else {
+
+            FnoHomePlaceholder(
+                selectedFnoSection =
+                    selectedFnoSection,
+
+                futureContracts =
+                    futureContracts,
+
+                optionCount =
+                    optionCount,
+
+                onFuturesSelected = {
+                    selectedFnoSection =
+                        "FUTURES"
+                },
+
+                onOptionsSelected = {
+                    selectedFnoSection =
+                        "OPTIONS"
+                },
+
+                provider =
+                    fnoMarketDataProvider
+            )
+        }
+    }
+}
+
+@Composable
 private fun FnoHomePlaceholder(
     selectedFnoSection: String,
     futureContracts: List<FnoContract>,
@@ -677,11 +925,13 @@ private fun FnoHomePlaceholder(
             ) {
 
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier =
+                        Modifier.padding(16.dp)
                 ) {
 
                     Text(
                         text = "OPTIONS",
+
                         style =
                             MaterialTheme
                                 .typography
