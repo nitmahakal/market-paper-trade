@@ -1616,65 +1616,278 @@ private fun FnoHomePlaceholder(
 
                             selectedOptionContract?.let {
                                 contract ->
-
+                            
                                 androidx.compose.material3.Card(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        top = 14.dp
-                                    )
-                        ) {
-
-                            Column(
-                                modifier =
-                                    Modifier.padding(
-                                        12.dp
-                                    )
-                            ) {
-
-                                Text(
-                                    text =
-                                        "SELECTED CONTRACT",
-
-                                    style =
-                                        MaterialTheme
-                                            .typography
-                                            .labelMedium
-                                )
-
-                                Text(
-                                    text =
-                                        contract.displayName,
-
-                                    style =
-                                        MaterialTheme
-                                            .typography
-                                            .titleMedium,
-
                                     modifier =
-                                        Modifier.padding(
-                                            top = 4.dp
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                top = 14.dp
+                                            )
+                                ) {
+                            
+                                    Column(
+                                        modifier =
+                                            Modifier.padding(
+                                                12.dp
+                                            )
+                                    ) {
+                            
+                                        Text(
+                                            text =
+                                                "SELECTED CONTRACT",
+                            
+                                            style =
+                                                MaterialTheme
+                                                    .typography
+                                                    .labelMedium
                                         )
-                                )
-
-                                Text(
-                                    text =
-                                        "Lot Size: ${contract.lotSize}",
-
-                                    style =
-                                        MaterialTheme
-                                            .typography
-                                            .bodySmall,
-
-                                    modifier =
-                                        Modifier.padding(
-                                            top = 4.dp
+                            
+                                        Text(
+                                            text =
+                                                contract.displayName,
+                            
+                                            style =
+                                                MaterialTheme
+                                                    .typography
+                                                    .titleMedium,
+                            
+                                            modifier =
+                                                Modifier.padding(
+                                                    top = 4.dp
+                                                )
                                         )
-                                )
+                            
+                                        Row(
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        top = 10.dp
+                                                    ),
+                            
+                                            horizontalArrangement =
+                                                Arrangement.spacedBy(8.dp)
+                                        ) {
+                            
+                                            Column(
+                                                modifier =
+                                                    Modifier.weight(1f)
+                                            ) {
+                            
+                                                Text(
+                                                    text =
+                                                        "LOT SIZE",
+                            
+                                                    style =
+                                                        MaterialTheme
+                                                            .typography
+                                                            .labelSmall
+                                                )
+                            
+                                                Text(
+                                                    text =
+                                                        contract.lotSize.toString(),
+                            
+                                                    style =
+                                                        MaterialTheme
+                                                            .typography
+                                                            .bodyLarge
+                                                )
+                                            }
+                            
+                                            Column(
+                                                modifier =
+                                                    Modifier.weight(1f)
+                                            ) {
+                            
+                                                Text(
+                                                    text =
+                                                        "LTP",
+                            
+                                                    style =
+                                                        MaterialTheme
+                                                            .typography
+                                                            .labelSmall
+                                                )
+                            
+                                                Text(
+                                                    text =
+                                                        optionMarketQuote
+                                                            ?.price
+                                                            ?.let {
+                                                                "%.2f".format(it)
+                                                            }
+                                                            ?: "--",
+                            
+                                                    style =
+                                                        MaterialTheme
+                                                            .typography
+                                                            .titleMedium
+                                                )
+                                            }
+                                        }
+                            
+                                        OutlinedTextField(
+                                            value =
+                                                optionLotsText,
+                            
+                                            onValueChange = {
+                                                optionLotsText =
+                                                    it.filter { character ->
+                                                        character.isDigit()
+                                                    }
+                                            },
+                            
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        top = 14.dp
+                                                    ),
+                            
+                                            label = {
+                                                Text("Lots")
+                                            },
+                            
+                                            placeholder = {
+                                                Text(
+                                                    "Enter number of lots"
+                                                )
+                                            },
+                            
+                                            singleLine = true
+                                        )
+                            
+                                        val optionLots =
+                                            optionLotsText.toIntOrNull()
+                                                ?: 0
+                            
+                                        val optionPrice =
+                                            optionMarketQuote
+                                                ?.price
+                                                ?: 0.0
+                            
+                                        Row(
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        top = 12.dp
+                                                    ),
+                            
+                                            horizontalArrangement =
+                                                Arrangement.spacedBy(10.dp)
+                                        ) {
+                            
+                                            Button(
+                                                onClick = {
+                            
+                                                    if (
+                                                        optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                                    ) {
+                            
+                                                        val result =
+                                                            fnoTradeEngine.buy(
+                                                                contract =
+                                                                    contract,
+                                                                lots =
+                                                                    optionLots,
+                                                                price =
+                                                                    optionPrice
+                                                            )
+                            
+                                                        optionTradeMessage =
+                                                            if (
+                                                                result.isSuccess
+                                                            ) {
+                                                                "BUY successful"
+                                                            } else {
+                                                                result
+                                                                    .exceptionOrNull()
+                                                                    ?.message
+                                                                    ?: "BUY failed"
+                                                            }
+                                                    }
+                                                },
+                            
+                                                modifier =
+                                                    Modifier.weight(1f),
+                            
+                                                enabled =
+                                                    optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                            ) {
+                                                Text("BUY")
+                                            }
+                            
+                                            OutlinedButton(
+                                                onClick = {
+                            
+                                                    if (
+                                                        optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                                    ) {
+                            
+                                                        val result =
+                                                            fnoTradeEngine.sell(
+                                                                contract =
+                                                                    contract,
+                                                                lots =
+                                                                    optionLots,
+                                                                price =
+                                                                    optionPrice
+                                                            )
+                            
+                                                        optionTradeMessage =
+                                                            if (
+                                                                result.isSuccess
+                                                            ) {
+                                                                "SELL successful"
+                                                            } else {
+                                                                result
+                                                                    .exceptionOrNull()
+                                                                    ?.message
+                                                                    ?: "SELL failed"
+                                                            }
+                                                    }
+                                                },
+                            
+                                                modifier =
+                                                    Modifier.weight(1f),
+                            
+                                                enabled =
+                                                    optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                            ) {
+                                                Text("SELL")
+                                            }
+                                        }
+                            
+                                        if (
+                                            optionTradeMessage
+                                                .isNotBlank()
+                                        ) {
+                            
+                                            Text(
+                                                text =
+                                                    optionTradeMessage,
+                            
+                                                style =
+                                                    MaterialTheme
+                                                        .typography
+                                                        .bodyMedium,
+                            
+                                                modifier =
+                                                    Modifier.padding(
+                                                        top = 10.dp
+                                                    )
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                        }
-                    }
 
                     Text(
                         text =
