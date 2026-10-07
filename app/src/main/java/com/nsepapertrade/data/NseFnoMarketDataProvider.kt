@@ -19,7 +19,7 @@ class NseFnoMarketDataProvider :
             "https://www.nseindia.com"
 
         private const val QUOTE_URL =
-            "$BASE_URL/api/quote-derivative?symbol="
+            "$BASE_URL/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolDerivativesData&symbol="
 
         private const val OPTION_CHAIN_INDEX_URL =
             "$BASE_URL/api/option-chain-indices?symbol="
@@ -217,67 +217,68 @@ class NseFnoMarketDataProvider :
         response: String,
         contract: FnoContract
     ): MarketQuote? {
-
+    
         val root =
             JSONObject(response)
-
-        val stocks =
-            root.optJSONArray("stocks")
+    
+        val data =
+            root.optJSONArray("data")
                 ?: return null
-
+    
         for (
-            index in 0 until stocks.length()
+            index in 0 until data.length()
         ) {
-
+    
             val item =
-                stocks.optJSONObject(index)
+                data.optJSONObject(index)
                     ?: continue
-
-            val metadata =
-                item.optJSONObject("metadata")
-                    ?: continue
-
+    
+            val underlying =
+                item.optString("underlying")
+    
+            if (
+                !underlying.equals(
+                    contract.underlying,
+                    ignoreCase = true
+                )
+            ) {
+                continue
+            }
+    
             val instrumentType =
-                metadata.optString(
-                    "instrumentType"
-                )
-
-            val expiry =
-                metadata.optString(
-                    "expiryDate"
-                )
-
-            val strike =
-                metadata.optDouble(
-                    "strikePrice",
-                    0.0
-                )
-
-            val optionType =
-                metadata.optString(
-                    "optionType"
-                )
-
+                item.optString("instrumentType")
+    
             val matchesType =
                 when (contract.contractType) {
-
+    
                     FnoContractType.FUTURE ->
-                        instrumentType.contains(
-                            "Future",
+                        instrumentType.equals(
+                            "FUTSTK",
+                            ignoreCase = true
+                        ) ||
+                        instrumentType.equals(
+                            "FUTIDX",
                             ignoreCase = true
                         )
-
+    
                     FnoContractType.OPTION ->
-                        instrumentType.contains(
-                            "Option",
+                        instrumentType.equals(
+                            "OPTSTK",
+                            ignoreCase = true
+                        ) ||
+                        instrumentType.equals(
+                            "OPTIDX",
                             ignoreCase = true
                         )
                 }
-
+    
             if (!matchesType) {
                 continue
             }
-
+    
+            val expiry =
+                item.optString("expiryDate")
+    
             if (
                 !expiryMatches(
                     expiry,
@@ -286,12 +287,18 @@ class NseFnoMarketDataProvider :
             ) {
                 continue
             }
-
+    
             if (
                 contract.contractType ==
                 FnoContractType.OPTION
             ) {
-
+    
+                val strike =
+                    item.optDouble(
+                        "strikePrice",
+                        0.0
+                    )
+    
                 if (
                     kotlin.math.abs(
                         strike -
@@ -300,7 +307,10 @@ class NseFnoMarketDataProvider :
                 ) {
                     continue
                 }
-
+    
+                val optionType =
+                    item.optString("optionType")
+    
                 if (
                     !optionType.equals(
                         contract.optionType.name,
@@ -310,17 +320,17 @@ class NseFnoMarketDataProvider :
                     continue
                 }
             }
-
+    
             val price =
                 firstPositive(
-                    metadata,
+                    item,
                     "lastPrice",
                     "ltp",
                     "closePrice"
                 )
-
+    
             if (price != null) {
-
+    
                 return MarketQuote(
                     symbol = contract.symbol,
                     price = price,
@@ -331,7 +341,7 @@ class NseFnoMarketDataProvider :
                 )
             }
         }
-
+    
         return null
     }
 
@@ -558,19 +568,19 @@ class NseFnoMarketDataProvider :
     }
 
     private fun firstPositive(
-        metadata: JSONObject,
+        json: JSONObject,
         vararg keys: String
     ): Double? {
 
         for (key in keys) {
 
             if (
-                metadata.has(key) &&
-                !metadata.isNull(key)
+                json.has(key) &&
+                !json.isNull(key)
             ) {
 
                 val value =
-                    metadata.optDouble(
+                    json.optDouble(
                         key,
                         0.0
                     )
