@@ -24,7 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.nsepapertrade.data.FnoContractManager
 import com.nsepapertrade.data.FnoContractStore
+import com.nsepapertrade.data.NseFnoContractProvider
 import com.nsepapertrade.data.FnoTradeEngine
 import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.MarketDataState
@@ -102,11 +104,60 @@ fun PaperTradeApp() {
             instrumentRepository.getEquities()
         }
 
-    val fnoContracts =
+   val fnoContractManager =
         remember(context) {
+            FnoContractManager(
+                context = context,
+                provider = NseFnoContractProvider()
+            )
+        }
+
+    var fnoContracts by remember(context) {
+        mutableStateOf(
             FnoContractStore(context)
                 .loadContracts()
+        )
+    }
+
+    var fnoUpdateMessage by remember {
+        mutableStateOf("")
+    }
+
+    var fnoUpdateLoading by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(Unit) {
+
+        fnoUpdateLoading = true
+        fnoUpdateMessage = "Updating F&O contracts..."
+
+        try {
+
+            val result =
+                fnoContractManager.update()
+
+            fnoContracts =
+                fnoContractManager.getContracts()
+
+            fnoUpdateMessage =
+                if (result.success) {
+                    "F&O contracts updated: ${result.contractCount}"
+                } else {
+                    result.message
+                }
+
+        } catch (e: Exception) {
+
+            fnoUpdateMessage =
+                e.message
+                    ?: "F&O contract update failed."
+
+        } finally {
+
+            fnoUpdateLoading = false
         }
+    }
 
     val futureContracts =
         remember(fnoContracts) {
@@ -262,9 +313,29 @@ fun PaperTradeApp() {
 
         } else {
 
-            FnoHomePlaceholder(
-                selectedFnoSection =
-                    selectedFnoSection,
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                if (fnoUpdateLoading ||
+                    fnoUpdateMessage.isNotBlank()
+                ) {
+                    Text(
+                        text = fnoUpdateMessage,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodySmall,
+                        modifier =
+                            Modifier.padding(
+                                bottom = 8.dp
+                            )
+                    )
+                }
+
+                FnoHomePlaceholder(
+                    selectedFnoSection =
+                        selectedFnoSection,
 
                 futureContracts =
                     futureContracts,
