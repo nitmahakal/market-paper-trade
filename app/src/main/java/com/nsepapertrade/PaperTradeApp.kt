@@ -355,7 +355,8 @@ fun PaperTradeApp() {
 
                 provider =
                     fnoMarketDataProvider
-            )
+                )
+            }
         }
     }
 }
