@@ -38,6 +38,7 @@ import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.data.YahooMarketDataProvider
 import com.nsepapertrade.model.FnoContract
+import com.nsepapertrade.model.OptionType
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.ui.PaperTradeScreen
 import kotlinx.coroutines.Dispatchers
@@ -1042,7 +1043,92 @@ private fun FnoHomePlaceholder(
                 }
             }
 
-        } else {
+         } else {
+
+            var optionSearch by remember {
+                mutableStateOf("")
+            }
+
+            var selectedOptionUnderlying by remember {
+                mutableStateOf("")
+            }
+
+            var selectedOptionExpiry by remember {
+                mutableStateOf("")
+            }
+
+            var optionChain by remember {
+                mutableStateOf<FnoOptionChain?>(null)
+            }
+
+            var selectedOptionContract by remember {
+                mutableStateOf<FnoContract?>(null)
+            }
+
+            var optionChainLoading by remember {
+                mutableStateOf(false)
+            }
+
+            var optionChainMessage by remember {
+                mutableStateOf("")
+            }
+
+            val optionContracts =
+                remember(fnoContracts) {
+                    fnoContracts.filter {
+                        it.contractType ==
+                            FnoContractType.OPTION
+                    }
+                }
+
+            val matchingUnderlyings =
+                remember(
+                    optionContracts,
+                    optionSearch
+                ) {
+
+                    val query =
+                        optionSearch
+                            .trim()
+                            .uppercase()
+
+                    if (query.isBlank()) {
+                        emptyList()
+                    } else {
+                        optionContracts
+                            .map {
+                                it.underlying
+                            }
+                            .distinct()
+                            .filter {
+                                it.contains(
+                                    query,
+                                    ignoreCase = true
+                                )
+                            }
+                            .sorted()
+                    }
+                }
+
+            val availableExpiries =
+                remember(
+                    optionContracts,
+                    selectedOptionUnderlying
+                ) {
+
+                    optionContracts
+                        .filter {
+                            it.underlying.equals(
+                                selectedOptionUnderlying,
+                                ignoreCase = true
+                            )
+                        }
+                        .map {
+                            it.expiry
+                        }
+                        .distinct()
+                        .sorted()
+                }
 
             androidx.compose.material3.Card(
                 modifier = Modifier
@@ -1066,16 +1152,463 @@ private fun FnoHomePlaceholder(
 
                     Text(
                         text =
-                            "Option Chain is the next step.",
+                            "Option Chain",
 
                         style =
                             MaterialTheme
                                 .typography
-                                .bodyMedium,
+                                .titleMedium,
 
                         modifier =
-                            Modifier.padding(top = 8.dp)
+                            Modifier.padding(top = 12.dp)
                     )
+
+                    OutlinedTextField(
+                        value =
+                            optionSearch,
+
+                        onValueChange = {
+                            optionSearch = it
+                            selectedOptionUnderlying = ""
+                            selectedOptionExpiry = ""
+                            optionChain = null
+                            selectedOptionContract = null
+                            optionChainMessage = ""
+                        },
+
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+
+                        label = {
+                            Text(
+                                "Search underlying"
+                            )
+                        },
+
+                        placeholder = {
+                            Text(
+                                "NIFTY / BANKNIFTY / RELIANCE"
+                            )
+                        },
+
+                        singleLine = true
+                    )
+
+                    if (
+                        matchingUnderlyings
+                            .isNotEmpty()
+                    ) {
+
+                        LazyColumn(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(
+                                        max = 180.dp
+                                    )
+                                    .padding(top = 6.dp)
+                        ) {
+
+                            items(
+                                items =
+                                    matchingUnderlyings,
+                                key = {
+                                    it
+                                }
+                            ) { underlying ->
+
+                                OutlinedButton(
+                                    onClick = {
+
+                                        selectedOptionUnderlying =
+                                            underlying
+
+                                        selectedOptionExpiry =
+                                            ""
+
+                                        optionChain =
+                                            null
+
+                                        selectedOptionContract =
+                                            null
+
+                                        optionChainMessage =
+                                            ""
+                                    },
+
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                vertical = 3.dp
+                                            )
+                                ) {
+                                    Text(
+                                        underlying
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (
+                        selectedOptionUnderlying
+                            .isNotBlank()
+                    ) {
+
+                        Text(
+                            text =
+                                "Underlying: $selectedOptionUnderlying",
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodyLarge,
+
+                            modifier =
+                                Modifier.padding(
+                                    top = 12.dp
+                                )
+                        )
+
+                        Text(
+                            text =
+                                "Select Expiry",
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .labelLarge,
+
+                            modifier =
+                                Modifier.padding(
+                                    top = 10.dp
+                                )
+                        )
+
+                        LazyColumn(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(
+                                        max = 150.dp
+                                    )
+                                    .padding(top = 4.dp)
+                        ) {
+
+                            items(
+                                items =
+                                    availableExpiries,
+                                key = {
+                                    it
+                                }
+                            ) { expiry ->
+
+                                OutlinedButton(
+                                    onClick = {
+
+                                        selectedOptionExpiry =
+                                            expiry
+
+                                        selectedOptionContract =
+                                            null
+
+                                        optionChain =
+                                            null
+
+                                        optionChainMessage =
+                                            "Loading option chain..."
+
+                                        optionChainLoading =
+                                            true
+                                    },
+
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                vertical = 2.dp
+                                            )
+                                ) {
+                                    Text(
+                                        expiry
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    LaunchedEffect(
+                        selectedOptionUnderlying,
+                        selectedOptionExpiry
+                    ) {
+
+                        if (
+                            selectedOptionUnderlying
+                                .isBlank() ||
+                            selectedOptionExpiry
+                                .isBlank()
+                        ) {
+                            return@LaunchedEffect
+                        }
+
+                        optionChainLoading = true
+                        optionChainMessage =
+                            "Loading option chain..."
+
+                        try {
+
+                            val result =
+                                withContext(
+                                    Dispatchers.IO
+                                ) {
+                                    provider
+                                        .getOptionChain(
+                                            underlying =
+                                                selectedOptionUnderlying,
+                                            expiry =
+                                                selectedOptionExpiry
+                                        )
+                                }
+
+                            optionChain =
+                                result
+
+                            optionChainMessage =
+                                if (result == null) {
+                                    "No option chain data available."
+                                } else {
+                                    ""
+                                }
+
+                        } catch (e: Exception) {
+
+                            optionChain =
+                                null
+
+                            optionChainMessage =
+                                e.message
+                                    ?: "Option chain error."
+
+                        } finally {
+
+                            optionChainLoading =
+                                false
+                        }
+                    }
+
+                    if (optionChainLoading) {
+
+                        Text(
+                            text =
+                                "Loading option chain...",
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodySmall,
+
+                            modifier =
+                                Modifier.padding(
+                                    top = 10.dp
+                                )
+                        )
+                    }
+
+                    if (
+                        optionChainMessage
+                            .isNotBlank()
+                    ) {
+
+                        Text(
+                            text =
+                                optionChainMessage,
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodySmall,
+
+                            modifier =
+                                Modifier.padding(
+                                    top = 8.dp
+                                )
+                        )
+                    }
+
+                    optionChain?.let { chain ->
+
+                        Text(
+                            text =
+                                "Strike        CE LTP        PE LTP",
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .labelMedium,
+
+                            modifier =
+                                Modifier.padding(
+                                    top = 14.dp
+                                )
+                        )
+
+                        LazyColumn(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(
+                                        max = 320.dp
+                                    )
+                                    .padding(top = 6.dp)
+                        ) {
+
+                            items(
+                                items = chain.rows,
+                                key = {
+                                    it.strikePrice
+                                }
+                            ) { row ->
+
+                                OutlinedButton(
+                                    onClick = {
+                                        selectedOptionContract =
+                                            row.call
+                                                ?.contract
+                                                ?: row.put
+                                                    ?.contract
+                                    },
+
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                vertical = 2.dp
+                                            )
+                                ) {
+
+                                    Row(
+                                        modifier =
+                                            Modifier.fillMaxWidth()
+                                    ) {
+
+                                        Text(
+                                            text =
+                                                "%.2f"
+                                                    .format(
+                                                        row.strikePrice
+                                                    ),
+
+                                            modifier =
+                                                Modifier.weight(
+                                                    1f
+                                                )
+                                        )
+
+                                        Text(
+                                            text =
+                                                row.call
+                                                    ?.ltp
+                                                    ?.let {
+                                                        "%.2f"
+                                                            .format(
+                                                                it
+                                                            )
+                                                    }
+                                                    ?: "--",
+
+                                            modifier =
+                                                Modifier.weight(
+                                                    1f
+                                                )
+                                        )
+
+                                        Text(
+                                            text =
+                                                row.put
+                                                    ?.ltp
+                                                    ?.let {
+                                                        "%.2f"
+                                                            .format(
+                                                                it
+                                                            )
+                                                    }
+                                                    ?: "--",
+
+                                            modifier =
+                                                Modifier.weight(
+                                                    1f
+                                                )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    selectedOptionContract?.let {
+                        contract ->
+
+                        androidx.compose.material3.Card(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        top = 14.dp
+                                    )
+                        ) {
+
+                            Column(
+                                modifier =
+                                    Modifier.padding(
+                                        12.dp
+                                    )
+                            ) {
+
+                                Text(
+                                    text =
+                                        "SELECTED CONTRACT",
+
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .labelMedium
+                                )
+
+                                Text(
+                                    text =
+                                        contract.displayName,
+
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .titleMedium,
+
+                                    modifier =
+                                        Modifier.padding(
+                                            top = 4.dp
+                                        )
+                                )
+
+                                Text(
+                                    text =
+                                        "Lot Size: ${contract.lotSize}",
+
+                                    style =
+                                        MaterialTheme
+                                            .typography
+                                            .bodySmall,
+
+                                    modifier =
+                                        Modifier.padding(
+                                            top = 4.dp
+                                        )
+                                )
+                            }
+                        }
+                    }
 
                     Text(
                         text =
@@ -1087,7 +1620,9 @@ private fun FnoHomePlaceholder(
                                 .bodySmall,
 
                         modifier =
-                            Modifier.padding(top = 10.dp)
+                            Modifier.padding(
+                                top = 12.dp
+                            )
                     )
                 }
             }
