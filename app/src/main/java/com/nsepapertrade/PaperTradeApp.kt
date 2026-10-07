@@ -38,6 +38,7 @@ import com.nsepapertrade.data.PaperTradeEngine
 import com.nsepapertrade.data.PaperTradeState
 import com.nsepapertrade.data.YahooMarketDataProvider
 import com.nsepapertrade.model.FnoContract
+import com.nsepapertrade.data.FnoOptionChain
 import com.nsepapertrade.model.OptionType
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.ui.PaperTradeScreen
@@ -391,12 +392,18 @@ fun PaperTradeApp() {
                 FnoHomePlaceholder(
                     selectedFnoSection =
                         selectedFnoSection,
-
-                futureContracts =
-                    futureContracts,
-
-                optionCount =
-                    optionCount,
+                
+                    futureContracts =
+                        futureContracts,
+                
+                    optionContracts =
+                        fnoContracts.filter {
+                            it.contractType ==
+                                FnoContractType.OPTION
+                        },
+                
+                    optionCount =
+                        optionCount,
 
                 onFuturesSelected = {
                     selectedFnoSection =
@@ -420,6 +427,7 @@ fun PaperTradeApp() {
 private fun FnoHomePlaceholder(
     selectedFnoSection: String,
     futureContracts: List<FnoContract>,
+    optionContracts: List<FnoContract>,
     optionCount: Int,
     onFuturesSelected: () -> Unit,
     onOptionsSelected: () -> Unit,
@@ -1073,17 +1081,14 @@ private fun FnoHomePlaceholder(
                 mutableStateOf("")
             }
 
-            val optionContracts =
-                remember(fnoContracts) {
-                    fnoContracts.filter {
-                        it.contractType ==
-                            FnoContractType.OPTION
-                    }
+            val availableOptionContracts =
+                remember(optionContracts) {
+                    optionContracts
                 }
 
             val matchingUnderlyings =
                 remember(
-                    optionContracts,
+                    availableOptionContracts,
                     optionSearch
                 ) {
 
