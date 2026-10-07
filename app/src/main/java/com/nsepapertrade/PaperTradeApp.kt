@@ -25,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.nsepapertrade.data.FnoContractManager
+import com.nsepapertrade.data.FnoMarginManager
+import com.nsepapertrade.data.NseSpanMarginProvider
 import com.nsepapertrade.data.FnoContractStore
 import com.nsepapertrade.data.NseFnoContractProvider
 import com.nsepapertrade.data.FnoTradeEngine
@@ -104,13 +106,29 @@ fun PaperTradeApp() {
             instrumentRepository.getEquities()
         }
 
-   val fnoContractManager =
+    val fnoContractManager =
         remember(context) {
             FnoContractManager(
                 context = context,
                 provider = NseFnoContractProvider()
             )
         }
+
+    val fnoMarginManager =
+        remember(context) {
+            FnoMarginManager(
+                context = context,
+                provider = NseSpanMarginProvider()
+            )
+        }
+
+    var fnoMarginMessage by remember {
+        mutableStateOf("")
+    }
+
+    var fnoMarginLoading by remember {
+        mutableStateOf(false)
+    }
 
     var fnoContracts by remember(context) {
         mutableStateOf(
@@ -147,6 +165,25 @@ fun PaperTradeApp() {
                     result.message
                 }
 
+            if (result.success) {
+
+                fnoMarginLoading = true
+                fnoMarginMessage =
+                    "Updating F&O margin data..."
+
+                val marginResult =
+                    fnoMarginManager.update()
+
+                fnoMarginMessage =
+                    if (marginResult.success) {
+                        "F&O margin updated: ${marginResult.marginCount}"
+                    } else {
+                        marginResult.message
+                    }
+
+                fnoMarginLoading = false
+            }
+
         } catch (e: Exception) {
 
             fnoUpdateMessage =
@@ -156,6 +193,7 @@ fun PaperTradeApp() {
         } finally {
 
             fnoUpdateLoading = false
+            fnoMarginLoading = false
         }
     }
 
@@ -322,6 +360,22 @@ fun PaperTradeApp() {
                 ) {
                     Text(
                         text = fnoUpdateMessage,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodySmall,
+                        modifier =
+                            Modifier.padding(
+                                bottom = 8.dp
+                            )
+                    )
+                }
+
+                if (fnoMarginLoading ||
+                    fnoMarginMessage.isNotBlank()
+                ) {
+                    Text(
+                        text = fnoMarginMessage,
                         style =
                             MaterialTheme
                                 .typography
