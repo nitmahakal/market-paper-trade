@@ -1561,9 +1561,12 @@ private fun FnoHomePlaceholder(
                                     }
                                 }
                             }
-                                                    contract ->
+                        }
 
-                        androidx.compose.material3.Card(
+                            selectedOptionContract?.let {
+                                contract ->
+
+                                androidx.compose.material3.Card(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
