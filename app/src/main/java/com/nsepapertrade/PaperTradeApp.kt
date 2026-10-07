@@ -1130,7 +1130,9 @@ private fun FnoHomePlaceholder(
                                             if (
                                                 result.isSuccess
                                             ) {
+                                                refreshFnoPortfolio()
                                                 "BUY successful"
+                                                
                                             } else {
                                                 result
                                                     .exceptionOrNull()
@@ -1172,6 +1174,7 @@ private fun FnoHomePlaceholder(
                                             if (
                                                 result.isSuccess
                                             ) {
+                                                refreshFnoPortfolio()
                                                 "SELL successful"
                                             } else {
                                                 result
@@ -1966,6 +1969,7 @@ private fun FnoHomePlaceholder(
                                                             if (
                                                                 result.isSuccess
                                                             ) {
+                                                                refreshFnoPortfolio()
                                                                 "BUY successful"
                                                             } else {
                                                                 result
@@ -2008,6 +2012,7 @@ private fun FnoHomePlaceholder(
                                                             if (
                                                                 result.isSuccess
                                                             ) {
+                                                                refreshFnoPortfolio()
                                                                 "SELL successful"
                                                             } else {
                                                                 result
