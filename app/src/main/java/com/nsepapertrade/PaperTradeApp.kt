@@ -1073,6 +1073,18 @@ private fun FnoHomePlaceholder(
                 mutableStateOf<FnoContract?>(null)
             }
 
+            var optionMarketQuote by remember {
+                mutableStateOf<MarketQuote?>(null)
+            }
+            
+            var optionLotsText by remember {
+                mutableStateOf("1")
+            }
+            
+            var optionTradeMessage by remember {
+                mutableStateOf("")
+            }
+
             var optionChainLoading by remember {
                 mutableStateOf(false)
             }
@@ -1085,6 +1097,45 @@ private fun FnoHomePlaceholder(
                 remember(optionContracts) {
                     optionContracts
                 }
+
+            LaunchedEffect(selectedOptionContract) {
+
+                optionMarketQuote = null
+                optionTradeMessage = ""
+            
+                val contract =
+                    selectedOptionContract
+                        ?: return@LaunchedEffect
+            
+                while (isActive) {
+            
+                    try {
+            
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                provider.getQuote(contract)
+                            }
+            
+                        optionMarketQuote = result
+            
+                        if (result != null) {
+            
+                            fnoTradeEngine.updateMarketPrice(
+                                contractSymbol =
+                                    contract.symbol,
+                                price =
+                                    result.price
+                            )
+                        }
+            
+                    } catch (e: Exception) {
+            
+                        optionMarketQuote = null
+                    }
+            
+                    delay(5000)
+                }
+            }
 
             val matchingUnderlyings =
                 remember(
