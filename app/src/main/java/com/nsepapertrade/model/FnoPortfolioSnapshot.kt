@@ -14,6 +14,5 @@ data class FnoPortfolioSnapshot(
         get() =
             availableCash +
                 reservedMargin +
-                realizedPnl +
                 unrealizedPnl
 }
