@@ -468,6 +468,26 @@ private fun FnoHomePlaceholder(
         FnoTradeEngine(context)
     }
 
+    var fnoPortfolioSnapshot by remember {
+        mutableStateOf(
+            fnoTradeEngine.getPortfolioSnapshot()
+        )
+    }
+    
+    var fnoPortfolioPositions by remember {
+        mutableStateOf(
+            fnoTradeEngine.getPositions()
+        )
+    }
+    
+    fun refreshFnoPortfolio() {
+        fnoPortfolioSnapshot =
+            fnoTradeEngine.getPortfolioSnapshot()
+    
+        fnoPortfolioPositions =
+            fnoTradeEngine.getPositions()
+    }
+
     val filteredFutures = remember(
         futureContracts,
         searchQuery
