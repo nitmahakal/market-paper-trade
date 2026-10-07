@@ -1477,22 +1477,63 @@ private fun FnoHomePlaceholder(
                                 }
                             ) { row ->
 
-                                OutlinedButton(
-                                    onClick = {
-                                        selectedOptionContract =
-                                            row.call
-                                                ?.contract
-                                                ?: row.put
-                                                    ?.contract
-                                    },
-
+                                Row(
                                     modifier =
                                         Modifier
                                             .fillMaxWidth()
                                             .padding(
                                                 vertical = 2.dp
-                                            )
+                                            ),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(4.dp)
                                 ) {
+                                
+                                    OutlinedButton(
+                                        onClick = {
+                                            row.call?.let {
+                                                selectedOptionContract =
+                                                    it.contract
+                                            }
+                                        },
+                                        modifier =
+                                            Modifier.weight(1f)
+                                    ) {
+                                
+                                        Text(
+                                            text =
+                                                row.call
+                                                    ?.ltp
+                                                    ?.let {
+                                                        "CE %.2f"
+                                                            .format(it)
+                                                    }
+                                                    ?: "CE --"
+                                        )
+                                    }
+                                
+                                    OutlinedButton(
+                                        onClick = {
+                                            row.put?.let {
+                                                selectedOptionContract =
+                                                    it.contract
+                                            }
+                                        },
+                                        modifier =
+                                            Modifier.weight(1f)
+                                    ) {
+                                
+                                        Text(
+                                            text =
+                                                row.put
+                                                    ?.ltp
+                                                    ?.let {
+                                                        "PE %.2f"
+                                                            .format(it)
+                                                    }
+                                                    ?: "PE --"
+                                        )
+                                    }
+                                }
 
                                     Row(
                                         modifier =
