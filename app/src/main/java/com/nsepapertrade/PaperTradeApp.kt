@@ -590,7 +590,151 @@ private fun FnoHomePlaceholder(
             horizontalArrangement =
                 Arrangement.spacedBy(8.dp)
         ) {
-
+                    androidx.compose.material3.Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = "F&O PORTFOLIO",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "AVAILABLE CASH",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                    Text(
+                                        text = "₹%.2f".format(
+                                            fnoPortfolioSnapshot.availableCash
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+            
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "RESERVED MARGIN",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                    Text(
+                                        text = "₹%.2f".format(
+                                            fnoPortfolioSnapshot.reservedMargin
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "REALIZED P&L",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                    Text(
+                                        text = "₹%.2f".format(
+                                            fnoPortfolioSnapshot.realizedPnl
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+            
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "UNREALIZED P&L",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                    Text(
+                                        text = "₹%.2f".format(
+                                            fnoPortfolioSnapshot.unrealizedPnl
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+            
+                            Text(
+                                text = "TOTAL VALUE  ₹%.2f".format(
+                                    fnoPortfolioSnapshot.totalValue
+                                ),
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.padding(top = 10.dp)
+                            )
+            
+                            Text(
+                                text = "OPEN F&O POSITIONS",
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(top = 14.dp)
+                            )
+            
+                            if (fnoPortfolioPositions.isEmpty()) {
+                                Text(
+                                    text = "No open F&O positions",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            } else {
+                                fnoPortfolioPositions.forEach { position ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp)
+                                    ) {
+                                        Text(
+                                            text = position.contract.displayName,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+            
+                                        Text(
+                                            text =
+                                                "${position.side}  |  Lots: ${position.lots}  |  Avg: %.2f  |  LTP: %.2f"
+                                                    .format(
+                                                        position.averagePrice,
+                                                        position.lastPrice
+                                                    ),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+            
+                                        Text(
+                                            text =
+                                                "Margin: ₹%.2f  |  Unrealized P&L: ₹%.2f"
+                                                    .format(
+                                                        position.reservedMargin,
+                                                        position.unrealizedPnl
+                                                    ),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
             if (selectedFnoSection == "FUTURES") {
 
                 Button(
