@@ -35,7 +35,7 @@ class NseFnoContractParser {
         val indexMap =
             headers.mapIndexed { index, value ->
                 value.uppercase(Locale.US) to index
-            }
+            }.toMap()
 
         val result = mutableListOf<FnoContract>()
 
