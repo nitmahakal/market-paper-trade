@@ -402,6 +402,7 @@ fun PaperTradeApp() {
                             }
                         }
                     }
+                }
 
                 if (fnoMarginLoading ||
                     fnoMarginMessage.isNotBlank()
