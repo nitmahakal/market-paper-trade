@@ -233,6 +233,44 @@ class NseFnoContractParser {
         val cleaned =
             expiryValue.trim()
 
+        val numericExpiry =
+            cleaned.toLongOrNull()
+
+        if (numericExpiry != null) {
+
+            return try {
+
+                val nseEpoch =
+                    java.util.Calendar.getInstance(
+                        java.util.TimeZone.getTimeZone("UTC")
+                    ).apply {
+                        clear()
+                        set(
+                            1980,
+                            java.util.Calendar.JANUARY,
+                            1,
+                            0,
+                            0,
+                            0
+                        )
+                    }.timeInMillis
+
+                val expiryMillis =
+                    nseEpoch +
+                        (numericExpiry * 1000L)
+
+                SimpleDateFormat(
+                    "dd-MMM-yyyy",
+                    Locale.US
+                ).format(
+                    java.util.Date(expiryMillis)
+                )
+
+            } catch (_: Exception) {
+                null
+            }
+        }
+
         parseDate(cleaned, "dd-MMM-yyyy")?.let {
             return it
         }
