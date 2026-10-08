@@ -8,53 +8,145 @@ import java.util.zip.GZIPInputStream
 
 class NseFnoContractDownloader {
 
-    companion object {
-        private const val NSE_CONTRACT_URL =
-            "https://nsearchives.nseindia.com/content/fo/NSE_FO_contract_"
-    }
+```
+companion object {
+    private const val NSE_HOME_URL =
+        "https://www.nseindia.com/"
 
-    suspend fun download(
-        date: String
-    ): List<String> {
+    private const val NSE_CONTRACT_URL =
+        "https://nsearchives.nseindia.com/content/fo/NSE_FO_contract_"
 
-        val url = URL(
-            NSE_CONTRACT_URL + date + ".csv.gz"
+    private const val USER_AGENT =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/120.0.0.0 Safari/537.36"
+}
+
+suspend fun download(
+    date: String
+): List<String> {
+
+    val cookies = loadNseCookies()
+
+    val url = URL(
+        NSE_CONTRACT_URL + date + ".csv.gz"
+    )
+
+    val connection =
+        url.openConnection() as HttpURLConnection
+
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 45_000
+
+        connection.setRequestProperty(
+            "User-Agent",
+            USER_AGENT
         )
 
-        val connection =
-            url.openConnection() as HttpURLConnection
+        connection.setRequestProperty(
+            "Accept",
+            "text/html,application/xhtml+xml," +
+                "application/xml;q=0.9,*/*;q=0.8"
+        )
 
-        try {
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 30_000
+        connection.setRequestProperty(
+            "Accept-Language",
+            "en-US,en;q=0.9"
+        )
+
+        connection.setRequestProperty(
+            "Referer",
+            NSE_HOME_URL
+        )
+
+        if (cookies.isNotBlank()) {
             connection.setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0"
+                "Cookie",
+                cookies
             )
-            connection.setRequestProperty(
-                "Accept",
-                "*/*"
+        }
+
+        val responseCode =
+            connection.responseCode
+
+        if (responseCode !in 200..299) {
+            throw IllegalStateException(
+                "NSE contract download failed: HTTP $responseCode"
             )
+        }
 
-            val responseCode = connection.responseCode
+        GZIPInputStream(
+            connection.inputStream
+        ).use { gzipStream ->
 
-            if (responseCode !in 200..299) {
-                throw IllegalStateException(
-                    "NSE contract download failed: HTTP $responseCode"
+            BufferedReader(
+                InputStreamReader(
+                    gzipStream,
+                    Charsets.UTF_8
+                )
+            ).use { reader ->
+
+                return reader.readLines()
+            }
+        }
+
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun loadNseCookies(): String {
+
+    val connection =
+        URL(NSE_HOME_URL)
+            .openConnection() as HttpURLConnection
+
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 20_000
+
+        connection.setRequestProperty(
+            "User-Agent",
+            USER_AGENT
+        )
+
+        connection.setRequestProperty(
+            "Accept",
+            "text/html,application/xhtml+xml," +
+                "application/xml;q=0.9,*/*;q=0.8"
+        )
+
+        connection.setRequestProperty(
+            "Accept-Language",
+            "en-US,en;q=0.9"
+        )
+
+        connection.responseCode
+
+        return connection.headerFields
+            .filterKeys {
+                it.equals(
+                    "Set-Cookie",
+                    ignoreCase = true
                 )
             }
-
-            GZIPInputStream(connection.inputStream).use { gzipStream ->
-                BufferedReader(
-                    InputStreamReader(gzipStream, Charsets.UTF_8)
-                ).use { reader ->
-
-                    return reader.readLines()
-                }
+            .values
+            .flatten()
+            .mapNotNull { cookie ->
+                cookie
+                    ?.substringBefore(";")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
             }
-        } finally {
-            connection.disconnect()
-        }
+            .joinToString("; ")
+
+    } finally {
+        connection.disconnect()
     }
+}
+```
+
 }
