@@ -70,15 +70,58 @@ suspend fun download(
 
         val responseCode =
             connection.responseCode
-
+        
+        val contentType =
+            connection.contentType ?: "unknown"
+        
         if (responseCode !in 200..299) {
             throw IllegalStateException(
-                "NSE contract download failed: HTTP $responseCode"
+                "NSE contract download failed: " +
+                    "HTTP $responseCode " +
+                    "type=$contentType"
             )
         }
-
-        GZIPInputStream(
+        
+        val inputStream =
             connection.inputStream
+        
+        val pushbackStream =
+            java.io.PushbackInputStream(
+                inputStream,
+                2
+            )
+        
+        val firstByte =
+            pushbackStream.read()
+        
+        val secondByte =
+            pushbackStream.read()
+        
+        if (firstByte < 0 || secondByte < 0) {
+            throw IllegalStateException(
+                "NSE contract download returned empty response " +
+                    "HTTP $responseCode type=$contentType"
+            )
+        }
+        
+        pushbackStream.unread(secondByte)
+        pushbackStream.unread(firstByte)
+        
+        val gzipDetected =
+            firstByte == 0x1f &&
+                secondByte == 0x8b
+        
+        if (!gzipDetected) {
+            throw IllegalStateException(
+                "NSE contract response is not GZIP: " +
+                    "HTTP $responseCode " +
+                    "type=$contentType " +
+                    "bytes=$firstByte,$secondByte"
+            )
+        }
+        
+        GZIPInputStream(
+            pushbackStream
         ).use { gzipStream ->
 
             BufferedReader(
