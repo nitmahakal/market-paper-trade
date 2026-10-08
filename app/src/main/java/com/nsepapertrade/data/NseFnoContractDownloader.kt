@@ -8,7 +8,7 @@ import java.util.zip.GZIPInputStream
 
 class NseFnoContractDownloader {
 
-```
+
 companion object {
     private const val NSE_HOME_URL =
         "https://www.nseindia.com/"
@@ -147,6 +147,6 @@ private fun loadNseCookies(): String {
         connection.disconnect()
     }
 }
-```
+
 
 }
