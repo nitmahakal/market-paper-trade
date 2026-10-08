@@ -25,6 +25,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.nsepapertrade.data.FnoContractManager
 import com.nsepapertrade.data.FnoMarginManager
@@ -362,18 +364,44 @@ fun PaperTradeApp() {
                 if (fnoUpdateLoading ||
                     fnoUpdateMessage.isNotBlank()
                 ) {
-                    Text(
-                        text = fnoUpdateMessage,
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodySmall,
-                        modifier =
-                            Modifier.padding(
-                                bottom = 8.dp
+                    val clipboardManager =
+                        LocalClipboardManager.current
+                    
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = fnoUpdateMessage,
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodySmall
+                        )
+                    
+                        if (
+                            fnoUpdateMessage.contains(
+                                "F&O diagnostic",
+                                ignoreCase = true
                             )
-                    )
-                }
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    clipboardManager.setText(
+                                        AnnotatedString(
+                                            fnoUpdateMessage
+                                        )
+                                    )
+                                },
+                                modifier = Modifier.padding(
+                                    top = 6.dp
+                                )
+                            ) {
+                                Text("COPY DIAGNOSTIC")
+                            }
+                        }
+                    }
 
                 if (fnoMarginLoading ||
                     fnoMarginMessage.isNotBlank()
