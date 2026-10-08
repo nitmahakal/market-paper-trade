@@ -12,26 +12,42 @@ class NseFnoContractProvider(
 
     override suspend fun fetchContracts(): List<FnoContract> {
         val datesToTry = buildDateCandidates()
-
+    
         var lastError: Exception? = null
-
+        val diagnostics = mutableListOf<String>()
+    
         for (date in datesToTry) {
             try {
                 val lines = downloader.download(date)
-
+    
+                val headerIndex = lines.indexOfFirst {
+                    it.contains("FinInstrmNm", ignoreCase = true) &&
+                        it.contains("TckrSymb", ignoreCase = true)
+                }
+    
                 val contracts = parser.parse(lines)
-
+    
+                diagnostics +=
+                    "$date lines=${lines.size} header=$headerIndex parsed=${contracts.size}"
+    
                 if (contracts.isNotEmpty()) {
                     return contracts
                 }
             } catch (e: Exception) {
+                diagnostics +=
+                    "$date error=${e.message ?: "unknown"}"
                 lastError = e
             }
         }
-
+    
         throw IllegalStateException(
-            lastError?.message
-                ?: "No valid NSE F&O contract data found."
+            "F&O diagnostic: " +
+                diagnostics.joinToString(" | ") +
+                (
+                    lastError?.message?.let {
+                        " | lastError=$it"
+                    } ?: ""
+                )
         )
     }
 
