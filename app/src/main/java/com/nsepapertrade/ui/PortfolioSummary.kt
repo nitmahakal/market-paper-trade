@@ -8,29 +8,31 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nsepapertrade.data.PortfolioSnapshot
 import com.nsepapertrade.model.Position
+import com.nsepapertrade.ui.theme.lossColor
+import com.nsepapertrade.ui.theme.profitColor
 import java.util.Locale
 
-private val ProfitColor = Color(0xFF2E7D32)
-private val LossColor = Color(0xFFC62828)
-
 private const val SYMBOL_WEIGHT = 1.5f
-private const val QTY_WEIGHT = 0.9f
-private const val AVG_WEIGHT = 1.2f
+private const val QTY_WEIGHT = 0.8f
 private const val LTP_WEIGHT = 1.2f
-private const val PNL_WEIGHT = 1.4f
+private const val PNL_WEIGHT = 1.3f
 
 @Composable
 fun PortfolioSummary(
@@ -41,67 +43,16 @@ fun PortfolioSummary(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Portfolio",
-                    style = MaterialTheme.typography.titleMedium
-                )
 
-                SummaryRow(
-                    label = "Available Cash",
-                    value = snapshot.availableCash
-                )
-
-                SummaryRow(
-                    label = "Invested Value",
-                    value = snapshot.investedValue
-                )
-
-                SummaryRow(
-                    label = "Current Value",
-                    value = snapshot.currentValue
-                )
-
-                SummaryRow(
-                    label = "Realized P&L",
-                    value = snapshot.realizedPnl
-                )
-
-                SummaryRow(
-                    label = "Unrealized P&L",
-                    value = snapshot.unrealizedPnl
-                )
-
-                SummaryRow(
-                    label = "Total Value",
-                    value = snapshot.totalValue
-                )
-            }
-        }
+        SummaryCard(snapshot = snapshot)
 
         val openPositions = positions
             .filter { it.quantity > 0 }
             .sortedBy { it.symbol.uppercase() }
 
         if (openPositions.isNotEmpty()) {
-            Text(
-                text = "Current Positions",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Text(
-                text = "Tap a symbol to trade",
-                style = MaterialTheme.typography.bodySmall
-            )
-
             PositionsTable(
                 positions = openPositions,
                 onPositionClick = onPositionClick
@@ -111,86 +62,186 @@ fun PortfolioSummary(
 }
 
 @Composable
-private fun PositionsTable(
-    positions: List<Position>,
-    onPositionClick: (Position) -> Unit
+private fun SummaryCard(
+    snapshot: PortfolioSnapshot
 ) {
+    var expanded by rememberSaveable {
+        mutableStateOf(false)
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor =
+                MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        )
     ) {
         Column(
             modifier = Modifier.padding(
-                horizontal = 12.dp,
-                vertical = 8.dp
+                horizontal = 16.dp,
+                vertical = 12.dp
             )
         ) {
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .clickable { expanded = !expanded }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                HeaderCell("Symbol", SYMBOL_WEIGHT, TextAlign.Start)
-                HeaderCell("Qty", QTY_WEIGHT, TextAlign.End)
-                HeaderCell("Avg", AVG_WEIGHT, TextAlign.End)
-                HeaderCell("LTP", LTP_WEIGHT, TextAlign.End)
-                HeaderCell("P&L", PNL_WEIGHT, TextAlign.End)
-            }
 
-            HorizontalDivider()
-
-            positions.forEach { position ->
-
-                val pnl = position.unrealizedPnl
-
-                val pnlColor = when {
-                    pnl > 0.0 -> ProfitColor
-                    pnl < 0.0 -> LossColor
-                    else -> MaterialTheme.colorScheme.onSurface
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPositionClick(position) }
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column {
+                    Text(
+                        text = "Available Cash",
+                        style = MaterialTheme.typography.labelMedium,
+                        color =
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
                     Text(
-                        text = position.symbol,
-                        modifier = Modifier.weight(SYMBOL_WEIGHT),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    BodyCell(
-                        text = position.quantity.toString(),
-                        weight = QTY_WEIGHT
-                    )
-
-                    BodyCell(
-                        text = money(position.averagePrice),
-                        weight = AVG_WEIGHT
-                    )
-
-                    BodyCell(
-                        text = money(position.lastPrice),
-                        weight = LTP_WEIGHT
-                    )
-
-                    BodyCell(
-                        text = signedMoney(pnl),
-                        weight = PNL_WEIGHT,
-                        color = pnlColor
+                        text = "₹${money(snapshot.availableCash)}",
+                        style = MaterialTheme.typography.titleLarge
                     )
                 }
 
-                HorizontalDivider()
+                Text(
+                    text = if (expanded) "▴" else "▾",
+                    fontSize = 22.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+
+            if (expanded) {
+
+                Column(
+                    modifier = Modifier.padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+
+                    SummaryRow(
+                        label = "Invested Value",
+                        value = snapshot.investedValue
+                    )
+
+                    SummaryRow(
+                        label = "Current Value",
+                        value = snapshot.currentValue
+                    )
+
+                    SummaryRow(
+                        label = "Realized P&L",
+                        value = snapshot.realizedPnl,
+                        colored = true
+                    )
+
+                    SummaryRow(
+                        label = "Unrealized P&L",
+                        value = snapshot.unrealizedPnl,
+                        colored = true
+                    )
+
+                    SummaryRow(
+                        label = "Total Value",
+                        value = snapshot.totalValue
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PositionsTable(
+    positions: List<Position>,
+    onPositionClick: (Position) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+
+        Text(
+            text = "Positions",
+            style = MaterialTheme.typography.titleSmall
+        )
+
+        Text(
+            text = "Tap a symbol to trade",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HeaderCell("Symbol", SYMBOL_WEIGHT, TextAlign.Start)
+            HeaderCell("Qty", QTY_WEIGHT, TextAlign.End)
+            HeaderCell("LTP", LTP_WEIGHT, TextAlign.End)
+            HeaderCell("P&L", PNL_WEIGHT, TextAlign.End)
+        }
+
+        positions.forEach { position ->
+
+            val pnl = position.unrealizedPnl
+
+            val pnlColor = when {
+                pnl > 0.0 -> profitColor()
+                pnl < 0.0 -> lossColor()
+                else -> MaterialTheme.colorScheme.onSurface
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPositionClick(position) }
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+
+                Column(
+                    modifier = Modifier.weight(SYMBOL_WEIGHT)
+                ) {
+                    Text(
+                        text = position.symbol,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Text(
+                        text = "Avg ${money(position.averagePrice)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color =
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                BodyCell(
+                    text = position.quantity.toString(),
+                    weight = QTY_WEIGHT
+                )
+
+                BodyCell(
+                    text = money(position.lastPrice),
+                    weight = LTP_WEIGHT
+                )
+
+                BodyCell(
+                    text = signedMoney(pnl),
+                    weight = PNL_WEIGHT,
+                    color = pnlColor
+                )
             }
         }
     }
@@ -205,10 +256,9 @@ private fun RowScope.HeaderCell(
     Text(
         text = text,
         modifier = Modifier.weight(weight),
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        textAlign = align,
-        maxLines = 1
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = align
     )
 }
 
@@ -221,11 +271,9 @@ private fun RowScope.BodyCell(
     Text(
         text = text,
         modifier = Modifier.weight(weight),
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodyMedium,
         color = color,
-        textAlign = TextAlign.End,
-        maxLines = 1,
-        softWrap = false
+        textAlign = TextAlign.End
     )
 }
 
@@ -233,20 +281,33 @@ private fun RowScope.BodyCell(
 private fun SummaryRow(
     label: String,
     value: Double,
-    integerValue: Boolean = false
+    colored: Boolean = false
 ) {
+    val valueColor = when {
+        !colored -> Color.Unspecified
+        value > 0.0 -> profitColor()
+        value < 0.0 -> lossColor()
+        else -> Color.Unspecified
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Text(
-            text = if (integerValue) {
-                value.toInt().toString()
+            text = if (colored) {
+                "₹${signedMoney(value)}"
             } else {
                 "₹${money(value)}"
-            }
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = valueColor
         )
     }
 }
