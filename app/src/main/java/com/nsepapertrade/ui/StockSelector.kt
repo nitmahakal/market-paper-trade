@@ -9,6 +9,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +26,14 @@ fun StockSelector(
 ) {
     var query by remember {
         mutableStateOf("")
+    }
+
+    // Selection can also come from outside (portfolio tap):
+    // show that symbol in the search box.
+    LaunchedEffect(selectedInstrument?.symbol) {
+        if (selectedInstrument != null) {
+            query = selectedInstrument.symbol
+        }
     }
 
     val filtered = remember(query, instruments, selectedInstrument) {
@@ -49,10 +58,17 @@ fun StockSelector(
 
         OutlinedTextField(
             value = query,
-            onValueChange = {
-                query = it
+            onValueChange = { newText ->
+                query = newText
 
-                if (it.isBlank()) {
+                val editedAwayFromSelection =
+                    selectedInstrument != null &&
+                        !newText.trim().equals(
+                            selectedInstrument.symbol,
+                            ignoreCase = true
+                        )
+
+                if (newText.isBlank() || editedAwayFromSelection) {
                     onInstrumentSelected(null)
                 }
             },
