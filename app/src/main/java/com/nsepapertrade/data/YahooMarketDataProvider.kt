@@ -1,12 +1,33 @@
 package com.nsepapertrade.data
 
 import com.nsepapertrade.model.Instrument
+import org.json.JSONException
 import org.json.JSONObject
+import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URLEncoder
 import java.net.URL
+import java.net.URLEncoder
 
 class YahooMarketDataProvider : MarketDataProvider {
+
+    companion object {
+
+        private val HOSTS = listOf(
+            "query1.finance.yahoo.com",
+            "query2.finance.yahoo.com"
+        )
+
+        private const val TIMEOUT_MS = 8_000
+
+        // Quote older than this is shown as DELAYED
+        // (market closed, weekend, holiday or lagging feed).
+        private const val FRESH_LIMIT_MS = 2 * 60_000L
+
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/120.0.0.0 Safari/537.36"
+    }
 
     override suspend fun getQuote(
         instrument: Instrument
@@ -17,77 +38,164 @@ class YahooMarketDataProvider : MarketDataProvider {
             "UTF-8"
         )
 
+        for (host in HOSTS) {
+
+            val body = fetch(
+                host = host,
+                yahooSymbol = yahooSymbol
+            ) ?: continue
+
+            val quote = parseQuote(
+                body = body,
+                instrument = instrument
+            )
+
+            if (quote != null) {
+                return quote
+            }
+        }
+
+        return null
+    }
+
+    private fun fetch(
+        host: String,
+        yahooSymbol: String
+    ): String? {
+
         val url = URL(
-            "https://query1.finance.yahoo.com/v8/finance/chart/" +
-                "$yahooSymbol?range=1d&interval=1m&includePrePost=false"
+            "https://$host/v8/finance/chart/" +
+                "$yahooSymbol?range=1d&interval=1d" +
+                "&includePrePost=false"
         )
 
         val connection =
             url.openConnection() as HttpURLConnection
 
         return try {
+
             connection.requestMethod = "GET"
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 8_000
+            connection.connectTimeout = TIMEOUT_MS
+            connection.readTimeout = TIMEOUT_MS
             connection.setRequestProperty(
                 "User-Agent",
-                "Mozilla/5.0"
+                USER_AGENT
+            )
+            connection.setRequestProperty(
+                "Accept",
+                "application/json"
             )
 
             if (connection.responseCode !in 200..299) {
+                null
+            } else {
+                connection.inputStream
+                    .bufferedReader()
+                    .use { it.readText() }
+            }
+
+        } catch (_: IOException) {
+
+            null
+
+        } finally {
+
+            connection.disconnect()
+        }
+    }
+
+    private fun parseQuote(
+        body: String,
+        instrument: Instrument
+    ): MarketQuote? {
+
+        return try {
+
+            val results =
+                JSONObject(body)
+                    .optJSONObject("chart")
+                    ?.optJSONArray("result")
+
+            if (results == null || results.length() == 0) {
                 return null
             }
 
-            val response = connection.inputStream
-                .bufferedReader()
-                .use { it.readText() }
+            val result =
+                results.optJSONObject(0)
+                    ?: return null
 
-            val root = JSONObject(response)
-            val chart = root.getJSONObject("chart")
-            val result = chart
-                .getJSONArray("result")
-                .getJSONObject(0)
+            val meta =
+                result.optJSONObject("meta")
+                    ?: return null
 
-            val meta = result.getJSONObject("meta")
-
-            val price = when {
-                meta.has("regularMarketPrice") &&
-                    !meta.isNull("regularMarketPrice") ->
-                    meta.getDouble("regularMarketPrice")
-
-                else -> {
-                    val quote = result
-                        .getJSONObject("indicators")
-                        .getJSONArray("quote")
-                        .getJSONObject(0)
-
-                    val closes = quote.getJSONArray("close")
-
-                    var last: Double? = null
-
-                    for (i in 0 until closes.length()) {
-                        if (!closes.isNull(i)) {
-                            last = closes.getDouble(i)
-                        }
-                    }
-
-                    last
+            val price =
+                if (meta.has("regularMarketPrice") &&
+                    !meta.isNull("regularMarketPrice")
+                ) {
+                    meta.optDouble(
+                        "regularMarketPrice",
+                        0.0
+                    )
+                } else {
+                    lastClose(result)
                 }
-            }
 
             if (price == null || price <= 0.0) {
-                null
-            } else {
-                MarketQuote(
-                    symbol = instrument.symbol,
-                    price = price,
-                    timestamp = System.currentTimeMillis(),
-                    source = MarketDataSource.LIVE
-                )
+                return null
             }
 
-        } finally {
-            connection.disconnect()
+            val now = System.currentTimeMillis()
+
+            val marketTimeSeconds =
+                meta.optLong("regularMarketTime", 0L)
+
+            val marketTimeMs =
+                if (marketTimeSeconds > 0L) {
+                    marketTimeSeconds * 1000L
+                } else {
+                    now
+                }
+
+            val source =
+                if (now - marketTimeMs <= FRESH_LIMIT_MS) {
+                    MarketDataSource.LIVE
+                } else {
+                    MarketDataSource.DELAYED
+                }
+
+            MarketQuote(
+                symbol = instrument.symbol,
+                price = price,
+                timestamp = marketTimeMs,
+                source = source
+            )
+
+        } catch (_: JSONException) {
+
+            null
         }
+    }
+
+    private fun lastClose(
+        result: JSONObject
+    ): Double? {
+
+        val closes =
+            result
+                .optJSONObject("indicators")
+                ?.optJSONArray("quote")
+                ?.optJSONObject(0)
+                ?.optJSONArray("close")
+                ?: return null
+
+        var last: Double? = null
+
+        for (i in 0 until closes.length()) {
+            if (!closes.isNull(i)) {
+                last = closes.getDouble(i)
+            }
+        }
+
+        return last
     }
 }
