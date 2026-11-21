@@ -1,6 +1,20 @@
-package com.nsepapertrade
+  package com.nsepapertrade
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -219,79 +233,21 @@ fun PaperTradeApp() {
             }
         }
 
+    val imeVisible =
+        WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .navigationBarsPadding()
+            .imePadding()
     ) {
 
-        Row(
-            modifier =
-                Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(8.dp)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
         ) {
-
-            if (
-                selectedSection ==
-                    "EQUITY"
-            ) {
-
-                Button(
-                    onClick = {
-                        selectedSection =
-                            "EQUITY"
-                    },
-                    modifier =
-                        Modifier.weight(1f)
-                ) {
-                    Text("Trade Equity")
-                }
-
-            } else {
-
-                OutlinedButton(
-                    onClick = {
-                        selectedSection =
-                            "EQUITY"
-                    },
-                    modifier =
-                        Modifier.weight(1f)
-                ) {
-                    Text("Trade Equity")
-                }
-            }
-
-            if (
-                selectedSection ==
-                    "FNO"
-            ) {
-
-                Button(
-                    onClick = {
-                        selectedSection =
-                            "FNO"
-                    },
-                    modifier =
-                        Modifier.weight(1f)
-                ) {
-                    Text("Trade F&O")
-                }
-
-            } else {
-
-                OutlinedButton(
-                    onClick = {
-                        selectedSection =
-                            "FNO"
-                    },
-                    modifier =
-                        Modifier.weight(1f)
-                ) {
-                    Text("Trade F&O")
-                }
-            }
-        }
 
         if (
             selectedSection ==
@@ -358,7 +314,12 @@ fun PaperTradeApp() {
         } else {
 
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = 8.dp,
+                        vertical = 12.dp
+                    )
             ) {
 
                 if (fnoUpdateLoading ||
@@ -366,7 +327,7 @@ fun PaperTradeApp() {
                 ) {
                     val clipboardManager =
                         LocalClipboardManager.current
-                    
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -379,7 +340,7 @@ fun PaperTradeApp() {
                                     .typography
                                     .bodySmall
                         )
-                    
+
                         if (
                             fnoUpdateMessage.contains(
                                 "F&O diagnostic",
@@ -423,16 +384,16 @@ fun PaperTradeApp() {
                 FnoHomePlaceholder(
                     selectedFnoSection =
                         selectedFnoSection,
-                
+
                     futureContracts =
                         futureContracts,
-                
+
                     optionContracts =
                         fnoContracts.filter {
                             it.contractType ==
                                 FnoContractType.OPTION
                         },
-                
+
                     optionCount =
                         optionCount,
 
@@ -451,6 +412,84 @@ fun PaperTradeApp() {
                 )
             }
         }
+
+        }
+
+        if (!imeVisible) {
+            BottomTabs(
+                selectedSection = selectedSection,
+                onSelect = { selectedSection = it }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomTabs(
+    selectedSection: String,
+    onSelect: (String) -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            BottomTab(
+                label = "Equity",
+                selected = selectedSection == "EQUITY",
+                onClick = { onSelect("EQUITY") }
+            )
+
+            BottomTab(
+                label = "F&O",
+                selected = selectedSection == "FNO",
+                onClick = { onSelect("FNO") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowScope.BottomTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .background(
+                    if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        Color.Transparent
+                    }
+                )
+        )
+
+        Text(
+            text = label,
+            modifier = Modifier.padding(vertical = 14.dp),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight =
+                if (selected) FontWeight.Bold else FontWeight.Normal,
+            color =
+                if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+        )
     }
 }
 
@@ -504,17 +543,17 @@ private fun FnoHomePlaceholder(
             fnoTradeEngine.getPortfolioSnapshot()
         )
     }
-    
+
     var fnoPortfolioPositions by remember {
         mutableStateOf(
             fnoTradeEngine.getPositions()
         )
     }
-    
+
     fun refreshFnoPortfolio() {
         fnoPortfolioSnapshot =
             fnoTradeEngine.getPortfolioSnapshot()
-    
+
         fnoPortfolioPositions =
             fnoTradeEngine.getPositions()
     }
@@ -617,13 +656,6 @@ private fun FnoHomePlaceholder(
                 Modifier.padding(top = 2.dp)
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            horizontalArrangement =
-                Arrangement.spacedBy(8.dp)
-        ) {
                     androidx.compose.material3.Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -636,7 +668,7 @@ private fun FnoHomePlaceholder(
                                 text = "F&O PORTFOLIO",
                                 style = MaterialTheme.typography.titleMedium
                             )
-            
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -658,7 +690,7 @@ private fun FnoHomePlaceholder(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
-            
+
                                 Column(
                                     modifier = Modifier.weight(1f)
                                 ) {
@@ -674,7 +706,7 @@ private fun FnoHomePlaceholder(
                                     )
                                 }
                             }
-            
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -696,7 +728,7 @@ private fun FnoHomePlaceholder(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
-            
+
                                 Column(
                                     modifier = Modifier.weight(1f)
                                 ) {
@@ -712,7 +744,7 @@ private fun FnoHomePlaceholder(
                                     )
                                 }
                             }
-            
+
                             Text(
                                 text = "TOTAL VALUE  ₹%.2f".format(
                                     fnoPortfolioSnapshot.totalValue
@@ -720,13 +752,13 @@ private fun FnoHomePlaceholder(
                                 style = MaterialTheme.typography.titleSmall,
                                 modifier = Modifier.padding(top = 10.dp)
                             )
-            
+
                             Text(
                                 text = "OPEN F&O POSITIONS",
                                 style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier.padding(top = 14.dp)
                             )
-            
+
                             if (fnoPortfolioPositions.isEmpty()) {
                                 Text(
                                     text = "No open F&O positions",
@@ -744,7 +776,7 @@ private fun FnoHomePlaceholder(
                                             text = position.contract.displayName,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
-            
+
                                         Text(
                                             text =
                                                 "${position.side}  |  Lots: ${position.lots}  |  Avg: %.2f  |  LTP: %.2f"
@@ -754,7 +786,7 @@ private fun FnoHomePlaceholder(
                                                     ),
                                             style = MaterialTheme.typography.bodySmall
                                         )
-            
+
                                         Text(
                                             text =
                                                 "Margin: ₹%.2f  |  Unrealized P&L: ₹%.2f"
@@ -769,6 +801,14 @@ private fun FnoHomePlaceholder(
                             }
                         }
                     }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement =
+                Arrangement.spacedBy(8.dp)
+        ) {
             if (selectedFnoSection == "FUTURES") {
 
                 Button(
@@ -941,7 +981,7 @@ private fun FnoHomePlaceholder(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(12.dp)
                     ) {
 
                         Text(
@@ -1166,7 +1206,7 @@ private fun FnoHomePlaceholder(
                                             ) {
                                                 refreshFnoPortfolio()
                                                 "BUY successful"
-                                                
+
                                             } else {
                                                 result
                                                     .exceptionOrNull()
@@ -1277,11 +1317,11 @@ private fun FnoHomePlaceholder(
             var optionMarketQuote by remember {
                 mutableStateOf<MarketQuote?>(null)
             }
-            
+
             var optionLotsText by remember {
                 mutableStateOf("1")
             }
-            
+
             var optionTradeMessage by remember {
                 mutableStateOf("")
             }
@@ -1303,24 +1343,24 @@ private fun FnoHomePlaceholder(
 
                 optionMarketQuote = null
                 optionTradeMessage = ""
-            
+
                 val contract =
                     selectedOptionContract
                         ?: return@LaunchedEffect
-            
+
                 while (isActive) {
-            
+
                     try {
-            
+
                         val result =
                             withContext(Dispatchers.IO) {
                                 provider.getQuote(contract)
                             }
-            
+
                         optionMarketQuote = result
-            
+
                         if (result != null) {
-            
+
                             fnoTradeEngine.updateMarketPrice(
                                 contractSymbol =
                                     contract.symbol,
@@ -1328,12 +1368,12 @@ private fun FnoHomePlaceholder(
                                     result.price
                             )
                         }
-            
+
                     } catch (e: Exception) {
-            
+
                         optionMarketQuote = null
                     }
-            
+
                     delay(5000)
                 }
             }
@@ -1395,7 +1435,7 @@ private fun FnoHomePlaceholder(
 
                 Column(
                     modifier =
-                        Modifier.padding(16.dp)
+                        Modifier.padding(12.dp)
                 ) {
 
                     Text(
@@ -1727,7 +1767,7 @@ private fun FnoHomePlaceholder(
                                     it.strikePrice
                                 }
                             ) { row ->
-                            
+
                                 Column(
                                     modifier =
                                         Modifier
@@ -1736,33 +1776,33 @@ private fun FnoHomePlaceholder(
                                                 vertical = 4.dp
                                             )
                                 ) {
-                            
+
                                     Text(
                                         text =
                                             "Strike %.2f"
                                                 .format(
                                                     row.strikePrice
                                                 ),
-                            
+
                                         style =
                                             MaterialTheme
                                                 .typography
                                                 .labelMedium,
-                            
+
                                         modifier =
                                             Modifier.padding(
                                                 bottom = 4.dp
                                             )
                                     )
-                            
+
                                     Row(
                                         modifier =
                                             Modifier.fillMaxWidth(),
-                            
+
                                         horizontalArrangement =
                                             Arrangement.spacedBy(4.dp)
                                     ) {
-                            
+
                                         OutlinedButton(
                                             onClick = {
                                                 row.call?.let {
@@ -1770,11 +1810,11 @@ private fun FnoHomePlaceholder(
                                                         it.contract
                                                 }
                                             },
-                            
+
                                             modifier =
                                                 Modifier.weight(1f)
                                         ) {
-                            
+
                                             Text(
                                                 text =
                                                     row.call
@@ -1786,7 +1826,7 @@ private fun FnoHomePlaceholder(
                                                         ?: "CE --"
                                             )
                                         }
-                            
+
                                         OutlinedButton(
                                             onClick = {
                                                 row.put?.let {
@@ -1794,11 +1834,11 @@ private fun FnoHomePlaceholder(
                                                         it.contract
                                                 }
                                             },
-                            
+
                                             modifier =
                                                 Modifier.weight(1f)
                                         ) {
-                            
+
                                             Text(
                                                 text =
                                                     row.put
@@ -1817,7 +1857,7 @@ private fun FnoHomePlaceholder(
 
                             selectedOptionContract?.let {
                                 contract ->
-                            
+
                                 androidx.compose.material3.Card(
                                     modifier =
                                         Modifier
@@ -1826,39 +1866,39 @@ private fun FnoHomePlaceholder(
                                                 top = 14.dp
                                             )
                                 ) {
-                            
+
                                     Column(
                                         modifier =
                                             Modifier.padding(
                                                 12.dp
                                             )
                                     ) {
-                            
+
                                         Text(
                                             text =
                                                 "SELECTED CONTRACT",
-                            
+
                                             style =
                                                 MaterialTheme
                                                     .typography
                                                     .labelMedium
                                         )
-                            
+
                                         Text(
                                             text =
                                                 contract.displayName,
-                            
+
                                             style =
                                                 MaterialTheme
                                                     .typography
                                                     .titleMedium,
-                            
+
                                             modifier =
                                                 Modifier.padding(
                                                     top = 4.dp
                                                 )
                                         )
-                            
+
                                         Row(
                                             modifier =
                                                 Modifier
@@ -1866,52 +1906,52 @@ private fun FnoHomePlaceholder(
                                                     .padding(
                                                         top = 10.dp
                                                     ),
-                            
+
                                             horizontalArrangement =
                                                 Arrangement.spacedBy(8.dp)
                                         ) {
-                            
+
                                             Column(
                                                 modifier =
                                                     Modifier.weight(1f)
                                             ) {
-                            
+
                                                 Text(
                                                     text =
                                                         "LOT SIZE",
-                            
+
                                                     style =
                                                         MaterialTheme
                                                             .typography
                                                             .labelSmall
                                                 )
-                            
+
                                                 Text(
                                                     text =
                                                         contract.lotSize.toString(),
-                            
+
                                                     style =
                                                         MaterialTheme
                                                             .typography
                                                             .bodyLarge
                                                 )
                                             }
-                            
+
                                             Column(
                                                 modifier =
                                                     Modifier.weight(1f)
                                             ) {
-                            
+
                                                 Text(
                                                     text =
                                                         "LTP",
-                            
+
                                                     style =
                                                         MaterialTheme
                                                             .typography
                                                             .labelSmall
                                                 )
-                            
+
                                                 Text(
                                                     text =
                                                         optionMarketQuote
@@ -1920,7 +1960,7 @@ private fun FnoHomePlaceholder(
                                                                 "%.2f".format(it)
                                                             }
                                                             ?: "--",
-                            
+
                                                     style =
                                                         MaterialTheme
                                                             .typography
@@ -1928,52 +1968,190 @@ private fun FnoHomePlaceholder(
                                                 )
                                             }
                                         }
-                            
+
                                         OutlinedTextField(
                                             value =
                                                 optionLotsText,
-                            
+
                                             onValueChange = {
                                                 optionLotsText =
                                                     it.filter { character ->
                                                         character.isDigit()
                                                     }
                                             },
-                            
+
                                             modifier =
                                                 Modifier
                                                     .fillMaxWidth()
                                                     .padding(
                                                         top = 14.dp
                                                     ),
-                            
+
                                             label = {
                                                 Text("Lots")
                                             },
-                            
+
                                             placeholder = {
                                                 Text(
                                                     "Enter number of lots"
                                                 )
                                             },
-                            
+
                                             singleLine = true
                                         )
-                            
+
                                         val optionLots =
                                             optionLotsText.toIntOrNull()
                                                 ?: 0
-                            
+
                                         val optionPrice =
                                             optionMarketQuote
                                                 ?.price
                                                 ?: 0.0
-                            
+
                                         Row(
                                             modifier =
                                                 Modifier
                                                     .fillMaxWidth()
                                                     .padding(
+                                                        top = 12.dp
+                                                    ),
+
+                                            horizontalArrangement =
+                                                Arrangement.spacedBy(10.dp)
+                                        ) {
+
+                                            Button(
+                                                onClick = {
+
+                                                    if (
+                                                        optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                                    ) {
+
+                                                        val result =
+                                                            fnoTradeEngine.buy(
+                                                                contract =
+                                                                    contract,
+                                                                lots =
+                                                                    optionLots,
+                                                                price =
+                                                                    optionPrice
+                                                            )
+
+                                                        optionTradeMessage =
+                                                            if (
+                                                                result.isSuccess
+                                                            ) {
+                                                                refreshFnoPortfolio()
+                                                                "BUY successful"
+                                                            } else {
+                                                                result
+                                                                    .exceptionOrNull()
+                                                                    ?.message
+                                                                    ?: "BUY failed"
+                                                            }
+                                                    }
+                                                },
+
+                                                modifier =
+                                                    Modifier.weight(1f),
+
+                                                enabled =
+                                                    optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                            ) {
+                                                Text("BUY")
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+
+                                                    if (
+                                                        optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                                    ) {
+
+                                                        val result =
+                                                            fnoTradeEngine.sell(
+                                                                contract =
+                                                                    contract,
+                                                                lots =
+                                                                    optionLots,
+                                                                price =
+                                                                    optionPrice
+                                                            )
+
+                                                        optionTradeMessage =
+                                                            if (
+                                                                result.isSuccess
+                                                            ) {
+                                                                refreshFnoPortfolio()
+                                                                "SELL successful"
+                                                            } else {
+                                                                result
+                                                                    .exceptionOrNull()
+                                                                    ?.message
+                                                                    ?: "SELL failed"
+                                                            }
+                                                    }
+                                                },
+
+                                                modifier =
+                                                    Modifier.weight(1f),
+
+                                                enabled =
+                                                    optionPrice > 0.0 &&
+                                                        optionLots > 0
+                                            ) {
+                                                Text("SELL")
+                                            }
+                                        }
+
+                                        if (
+                                            optionTradeMessage
+                                                .isNotBlank()
+                                        ) {
+
+                                            Text(
+                                                text =
+                                                    optionTradeMessage,
+
+                                                style =
+                                                    MaterialTheme
+                                                        .typography
+                                                        .bodyMedium,
+
+                                                modifier =
+                                                    Modifier.padding(
+                                                        top = 10.dp
+                                                    )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                    Text(
+                        text =
+                            "Stored option contracts: $optionCount",
+
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodySmall,
+
+                        modifier =
+                            Modifier.padding(
+                                top = 12.dp
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+}                                      .padding(
                                                         top = 12.dp
                                                     ),
                             
