@@ -1,25 +1,33 @@
-
 package com.nsepapertrade.data
 
 import com.nsepapertrade.model.FnoContract
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.model.FnoUnderlyingType
 import com.nsepapertrade.model.OptionType
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import org.json.JSONObject
+
+private class CachedResponse(
+    val body: String,
+    val time: Long
+)
 
 class NseFnoMarketDataProvider :
     FnoMarketDataProvider,
     FnoOptionChainProvider {
 
     companion object {
+
         private const val BASE_URL =
             "https://www.nseindia.com"
 
         private const val QUOTE_URL =
-            "$BASE_URL/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolDerivativesData&symbol="
+            "$BASE_URL/api/NextApi/apiClient/GetQuoteApi" +
+                "?functionName=getSymbolDerivativesData&symbol="
 
         private const val OPTION_CHAIN_INDEX_URL =
             "$BASE_URL/api/option-chain-indices?symbol="
@@ -27,13 +35,21 @@ class NseFnoMarketDataProvider :
         private const val OPTION_CHAIN_EQUITY_URL =
             "$BASE_URL/api/option-chain-equities?symbol="
 
-        private const val PAGE_URL =
-            "$BASE_URL/get-quotes/derivatives?symbol="
-
-        private const val OPTION_CHAIN_PAGE_URL =
-            "$BASE_URL/option-chain?symbol="
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/120.0.0.0 Safari/537.36"
 
         private const val TIMEOUT_MS = 10_000
+        private const val COOKIE_TTL_MS = 4 * 60_000L
+        private const val QUOTE_CACHE_MS = 3_000L
+        private const val CHAIN_CACHE_MS = 8_000L
+
+        private val lock = Any()
+        private var cookieHeader: String? = null
+        private var cookieTime = 0L
+        private val responseCache =
+            HashMap<String, CachedResponse>()
     }
 
     override suspend fun getQuote(
@@ -42,14 +58,10 @@ class NseFnoMarketDataProvider :
 
         val symbol = encode(contract.underlying)
 
-        val cookies = loadPageCookies(
-            PAGE_URL + symbol
-        )
-
-        val response = getJson(
+        val response = fetchJson(
             url = QUOTE_URL + symbol,
-            cookies = cookies
-        ) ?: return null
+            cacheMs = QUOTE_CACHE_MS
+        )
 
         return findContractPrice(
             response = response,
@@ -71,25 +83,17 @@ class NseFnoMarketDataProvider :
 
         val symbol = encode(normalizedUnderlying)
 
-        val cookies = loadPageCookies(
-            OPTION_CHAIN_PAGE_URL + symbol
-        )
-
-        val indexUnderlying =
-            isIndexUnderlying(normalizedUnderlying)
-
         val apiUrl =
-            if (indexUnderlying) {
+            if (isIndexUnderlying(normalizedUnderlying)) {
                 OPTION_CHAIN_INDEX_URL + symbol
             } else {
                 OPTION_CHAIN_EQUITY_URL + symbol
             }
 
-        val response =
-            getJson(
-                url = apiUrl,
-                cookies = cookies
-            ) ?: return null
+        val response = fetchJson(
+            url = apiUrl,
+            cacheMs = CHAIN_CACHE_MS
+        )
 
         return parseOptionChain(
             response = response,
@@ -98,88 +102,217 @@ class NseFnoMarketDataProvider :
         )
     }
 
-    private fun loadPageCookies(
-        pageUrl: String
+    // ---------------------------------------------------------
+    // Network: shared cookie cache, retry on block, clear errors
+    // ---------------------------------------------------------
+
+    private fun fetchJson(
+        url: String,
+        cacheMs: Long
+    ): String {
+
+        val now = System.currentTimeMillis()
+
+        synchronized(lock) {
+            val cached = responseCache[url]
+            if (cached != null &&
+                now - cached.time < cacheMs
+            ) {
+                return cached.body
+            }
+        }
+
+        var result = requestWithCookies(
+            url = url,
+            forceNewCookies = false
+        )
+
+        if (result.first == 401 || result.first == 403) {
+            result = requestWithCookies(
+                url = url,
+                forceNewCookies = true
+            )
+        }
+
+        val code = result.first
+        val body = result.second
+
+        when {
+            code in 200..299 -> Unit
+
+            code == 401 || code == 403 ->
+                throw IOException(
+                    "NSE blocked the request (HTTP $code). " +
+                        "Wait a minute and try again."
+                )
+
+            code == 429 ->
+                throw IOException(
+                    "NSE rate limit reached (HTTP 429). " +
+                        "Try again after some time."
+                )
+
+            else ->
+                throw IOException(
+                    "NSE server error (HTTP $code)."
+                )
+        }
+
+        val trimmed = body.trim()
+
+        if (trimmed.isEmpty() || trimmed == "{}") {
+            throw IOException(
+                "NSE returned empty data " +
+                    "(session rejected). Try again in a minute."
+            )
+        }
+
+        if (!trimmed.startsWith("{") &&
+            !trimmed.startsWith("[")
+        ) {
+            throw IOException(
+                "NSE returned an invalid response " +
+                    "(blocked or page changed)."
+            )
+        }
+
+        synchronized(lock) {
+            responseCache[url] = CachedResponse(
+                body = body,
+                time = System.currentTimeMillis()
+            )
+        }
+
+        return body
+    }
+
+    private fun requestWithCookies(
+        url: String,
+        forceNewCookies: Boolean
+    ): Pair<Int, String> {
+
+        return try {
+            val cookies = getCookies(forceNewCookies)
+            requestOnce(url, cookies)
+        } catch (e: IOException) {
+            throw IOException(
+                e.message
+                    ?: "Cannot reach NSE. " +
+                    "Check your internet connection.",
+                e
+            )
+        }
+    }
+
+    private fun getCookies(
+        forceRefresh: Boolean
     ): String? {
 
+        synchronized(lock) {
+
+            val now = System.currentTimeMillis()
+
+            if (!forceRefresh &&
+                !cookieHeader.isNullOrBlank() &&
+                now - cookieTime < COOKIE_TTL_MS
+            ) {
+                return cookieHeader
+            }
+
+            val fresh = fetchCookies()
+
+            if (!fresh.isNullOrBlank()) {
+                cookieHeader = fresh
+                cookieTime = now
+            }
+
+            return fresh
+        }
+    }
+
+    private fun fetchCookies(): String? {
+
         val connection =
-            URL(pageUrl)
+            URL("$BASE_URL/")
                 .openConnection()
                 as HttpURLConnection
 
-        return try {
-
+        try {
             connection.requestMethod = "GET"
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
 
             connection.setRequestProperty(
                 "User-Agent",
-                "Mozilla/5.0"
+                USER_AGENT
             )
-
             connection.setRequestProperty(
                 "Accept",
                 "text/html,application/xhtml+xml"
             )
-
             connection.setRequestProperty(
                 "Accept-Language",
                 "en-US,en;q=0.9"
             )
 
-            connection.inputStream
-                .bufferedReader()
-                .use { it.readText() }
+            val code = connection.responseCode
 
-            connection.headerFields["Set-Cookie"]
-                ?.mapNotNull { cookie ->
+            val stream =
+                if (code in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
+
+            stream?.bufferedReader()?.use { it.readText() }
+
+            return connection.headerFields.entries
+                .filter {
+                    it.key?.equals(
+                        "Set-Cookie",
+                        ignoreCase = true
+                    ) == true
+                }
+                .flatMap { it.value }
+                .mapNotNull { cookie ->
                     cookie.substringBefore(";")
                         .takeIf { it.isNotBlank() }
                 }
-                ?.joinToString("; ")
-
-        } catch (_: Exception) {
-
-            null
+                .joinToString("; ")
+                .takeIf { it.isNotBlank() }
 
         } finally {
-
             connection.disconnect()
         }
     }
 
-    private fun getJson(
+    private fun requestOnce(
         url: String,
         cookies: String?
-    ): String? {
+    ): Pair<Int, String> {
 
         val connection =
             URL(url)
                 .openConnection()
                 as HttpURLConnection
 
-        return try {
-
+        try {
             connection.requestMethod = "GET"
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
 
             connection.setRequestProperty(
                 "User-Agent",
-                "Mozilla/5.0"
+                USER_AGENT
             )
-
             connection.setRequestProperty(
                 "Accept",
                 "application/json,text/plain,*/*"
             )
-
             connection.setRequestProperty(
                 "Accept-Language",
                 "en-US,en;q=0.9"
             )
-
             connection.setRequestProperty(
                 "Referer",
                 BASE_URL
@@ -192,135 +325,118 @@ class NseFnoMarketDataProvider :
                 )
             }
 
-            if (
-                connection.responseCode
-                !in 200..299
-            ) {
-                return null
-            }
+            val code = connection.responseCode
 
-            connection.inputStream
-                .bufferedReader()
-                .use { it.readText() }
+            val stream =
+                if (code in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
 
-        } catch (_: Exception) {
+            val text =
+                stream?.bufferedReader()
+                    ?.use { it.readText() }
+                    ?: ""
 
-            null
+            return code to text
 
         } finally {
-
             connection.disconnect()
         }
     }
+
+    // ---------------------------------------------------------
+    // Parsing
+    // ---------------------------------------------------------
 
     private fun findContractPrice(
         response: String,
         contract: FnoContract
     ): MarketQuote? {
-    
-        val root =
-            JSONObject(response)
-    
+
+        val root = parseRoot(response)
+
         val data =
             root.optJSONArray("data")
                 ?: return null
-    
-        for (
-            index in 0 until data.length()
-        ) {
-    
+
+        for (index in 0 until data.length()) {
+
             val item =
                 data.optJSONObject(index)
                     ?: continue
-    
-            val underlying =
-                item.optString("underlying")
-    
-            if (
-                !underlying.equals(
-                    contract.underlying,
-                    ignoreCase = true
-                )
+
+            if (!item.optString("underlying")
+                    .equals(
+                        contract.underlying,
+                        ignoreCase = true
+                    )
             ) {
                 continue
             }
-    
+
             val instrumentType =
                 item.optString("instrumentType")
-    
+
             val matchesType =
                 when (contract.contractType) {
-    
+
                     FnoContractType.FUTURE ->
                         instrumentType.equals(
                             "FUTSTK",
                             ignoreCase = true
-                        ) ||
-                        instrumentType.equals(
+                        ) || instrumentType.equals(
                             "FUTIDX",
                             ignoreCase = true
                         )
-    
+
                     FnoContractType.OPTION ->
                         instrumentType.equals(
                             "OPTSTK",
                             ignoreCase = true
-                        ) ||
-                        instrumentType.equals(
+                        ) || instrumentType.equals(
                             "OPTIDX",
                             ignoreCase = true
                         )
                 }
-    
+
             if (!matchesType) {
                 continue
             }
-    
-            val expiry =
-                item.optString("expiryDate")
-    
-            if (
-                !expiryMatches(
-                    expiry,
+
+            if (!expiryMatches(
+                    item.optString("expiryDate"),
                     contract.expiry
                 )
             ) {
                 continue
             }
-    
-            if (
-                contract.contractType ==
+
+            if (contract.contractType ==
                 FnoContractType.OPTION
             ) {
-    
+
                 val strike =
-                    item.optDouble(
-                        "strikePrice",
-                        0.0
-                    )
-    
-                if (
-                    kotlin.math.abs(
-                        strike -
-                            contract.strikePrice
+                    item.optDouble("strikePrice", 0.0)
+
+                if (kotlin.math.abs(
+                        strike - contract.strikePrice
                     ) > 0.001
                 ) {
                     continue
                 }
-    
-                val optionType =
-                    item.optString("optionType")
-    
-                if (
-                    !optionType.equals(
-                        contract.optionType.name,
-                        ignoreCase = true
-                    )
+
+                if (!item.optString("optionType")
+                        .equals(
+                            contract.optionType.name,
+                            ignoreCase = true
+                        )
                 ) {
                     continue
                 }
             }
-    
+
             val price =
                 firstPositive(
                     item,
@@ -328,20 +444,18 @@ class NseFnoMarketDataProvider :
                     "ltp",
                     "closePrice"
                 )
-    
+
             if (price != null) {
-    
                 return MarketQuote(
                     symbol = contract.symbol,
                     price = price,
                     timestamp =
                         System.currentTimeMillis(),
-                    source =
-                        MarketDataSource.LIVE
+                    source = MarketDataSource.LIVE
                 )
             }
         }
-    
+
         return null
     }
 
@@ -351,8 +465,7 @@ class NseFnoMarketDataProvider :
         expiry: String
     ): FnoOptionChain? {
 
-        val root =
-            JSONObject(response)
+        val root = parseRoot(response)
 
         val records =
             root.optJSONObject("records")
@@ -368,9 +481,7 @@ class NseFnoMarketDataProvider :
                 MutableList<FnoOptionChainContract>
             >()
 
-        for (
-            index in 0 until data.length()
-        ) {
+        for (index in 0 until data.length()) {
 
             val item =
                 data.optJSONObject(index)
@@ -379,12 +490,7 @@ class NseFnoMarketDataProvider :
             val itemExpiry =
                 item.optString("expiryDate")
 
-            if (
-                !expiryMatches(
-                    itemExpiry,
-                    expiry
-                )
-            ) {
+            if (!expiryMatches(itemExpiry, expiry)) {
                 continue
             }
 
@@ -435,22 +541,16 @@ class NseFnoMarketDataProvider :
                 .sortedBy { it.key }
                 .map { entry ->
 
-                    val call =
-                        entry.value.firstOrNull {
+                    FnoOptionChainRow(
+                        strikePrice = entry.key,
+                        call = entry.value.firstOrNull {
                             it.contract.optionType ==
                                 OptionType.CE
-                        }
-
-                    val put =
-                        entry.value.firstOrNull {
+                        },
+                        put = entry.value.firstOrNull {
                             it.contract.optionType ==
                                 OptionType.PE
                         }
-
-                    FnoOptionChainRow(
-                        strikePrice = entry.key,
-                        call = call,
-                        put = put
                     )
                 }
 
@@ -462,8 +562,7 @@ class NseFnoMarketDataProvider :
             underlying = underlying,
             expiry = expiry,
             rows = chainRows,
-            timestamp =
-                System.currentTimeMillis()
+            timestamp = System.currentTimeMillis()
         )
     }
 
@@ -488,18 +587,14 @@ class NseFnoMarketDataProvider :
                     } else {
                         FnoUnderlyingType.STOCK
                     },
-                contractType =
-                    FnoContractType.OPTION,
+                contractType = FnoContractType.OPTION,
                 expiry = expiry,
                 strikePrice = strike,
                 optionType = optionType,
                 lotSize =
                     optionData.optInt(
                         "marketLot",
-                        item.optInt(
-                            "marketLot",
-                            0
-                        )
+                        item.optInt("marketLot", 0)
                     )
             )
 
@@ -509,21 +604,18 @@ class NseFnoMarketDataProvider :
 
         return FnoOptionChainContract(
             contract = contract,
-            ltp =
-                positiveOrZero(
-                    optionData,
-                    "lastPrice"
-                ),
-            bidPrice =
-                positiveOrZero(
-                    optionData,
-                    "bidprice"
-                ),
-            askPrice =
-                positiveOrZero(
-                    optionData,
-                    "askPrice"
-                ),
+            ltp = positiveOrZero(
+                optionData,
+                "lastPrice"
+            ),
+            bidPrice = positiveOrZero(
+                optionData,
+                "bidprice"
+            ),
+            askPrice = positiveOrZero(
+                optionData,
+                "askPrice"
+            ),
             openInterest =
                 optionData.optLong(
                     "openInterest",
@@ -537,13 +629,30 @@ class NseFnoMarketDataProvider :
         )
     }
 
+    // ---------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------
+
+    private fun parseRoot(
+        response: String
+    ): JSONObject {
+
+        return try {
+            JSONObject(response)
+        } catch (e: JSONException) {
+            throw IOException(
+                "NSE sent unreadable data " +
+                    "(format may have changed).",
+                e
+            )
+        }
+    }
+
     private fun isIndexUnderlying(
         underlying: String
     ): Boolean {
 
-        return when (
-            underlying.uppercase()
-        ) {
+        return when (underlying.uppercase()) {
             "NIFTY",
             "BANKNIFTY",
             "FINNIFTY",
@@ -574,16 +683,10 @@ class NseFnoMarketDataProvider :
 
         for (key in keys) {
 
-            if (
-                json.has(key) &&
-                !json.isNull(key)
-            ) {
+            if (json.has(key) && !json.isNull(key)) {
 
                 val value =
-                    json.optDouble(
-                        key,
-                        0.0
-                    )
+                    json.optDouble(key, 0.0)
 
                 if (value > 0.0) {
                     return value
@@ -600,16 +703,9 @@ class NseFnoMarketDataProvider :
     ): Double {
 
         val value =
-            json.optDouble(
-                key,
-                0.0
-            )
+            json.optDouble(key, 0.0)
 
-        return if (value > 0.0) {
-            value
-        } else {
-            0.0
-        }
+        return if (value > 0.0) value else 0.0
     }
 
     private fun encode(
@@ -622,4 +718,3 @@ class NseFnoMarketDataProvider :
         )
     }
 }
-
