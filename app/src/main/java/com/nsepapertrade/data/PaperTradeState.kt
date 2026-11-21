@@ -16,6 +16,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
+import java.util.TimeZone
 
 class PaperTradeState(
     private val engine: PaperTradeEngine,
@@ -24,8 +26,29 @@ class PaperTradeState(
 ) : RememberObserver {
 
     companion object {
+
+        // Market hours: refresh often (even if feed is delayed)
         private const val LIVE_INTERVAL_MS = 10_000L
-        private const val IDLE_INTERVAL_MS = 60_000L
+
+        // Market hours but no fresh quote for a long time
+        // (holiday / stuck feed)
+        private const val QUIET_INTERVAL_MS = 60_000L
+
+        // Weekday before open / after close
+        private const val AFTER_HOURS_INTERVAL_MS = 5 * 60_000L
+
+        // Saturday / Sunday
+        private const val WEEKEND_INTERVAL_MS = 15 * 60_000L
+
+        // IST market session
+        private const val OPEN_MS = (9 * 60 + 15) * 60_000L
+        private const val CLOSE_MS = (15 * 60 + 30) * 60_000L
+
+        // Feed lag above this is not treated as a live-but-delayed feed
+        private const val MAX_FEED_DELAY_MS = 20 * 60_000L
+
+        // Until measured, assume the feed may lag by this much
+        private const val DEFAULT_FEED_DELAY_MS = 15 * 60_000L
     }
 
     var snapshot by mutableStateOf(engine.getPortfolioSnapshot())
@@ -44,6 +67,9 @@ class PaperTradeState(
         private set
 
     private var refreshScope: CoroutineScope? = null
+
+    @Volatile
+    private var feedDelayMs = DEFAULT_FEED_DELAY_MS
 
     // ---------------------------------------------------------
     // Auto refresh of all open positions' prices
@@ -75,15 +101,11 @@ class PaperTradeState(
         scope.launch {
             while (isActive) {
 
-                val anyLive = refreshPositionPrices()
+                val freshestLagMs = refreshPositionPrices()
 
-                delay(
-                    if (anyLive) {
-                        LIVE_INTERVAL_MS
-                    } else {
-                        IDLE_INTERVAL_MS
-                    }
-                )
+                updateFeedDelay(freshestLagMs)
+
+                delay(nextDelayMs(freshestLagMs))
             }
         }
     }
@@ -93,8 +115,9 @@ class PaperTradeState(
         refreshScope = null
     }
 
-    // Returns true if at least one quote was live.
-    private suspend fun refreshPositionPrices(): Boolean {
+    // Returns how old the freshest quote was (ms),
+    // or null if no quote could be fetched.
+    private suspend fun refreshPositionPrices(): Long? {
 
         val symbols = positions
             .filter { it.quantity > 0 }
@@ -102,11 +125,11 @@ class PaperTradeState(
             .distinct()
 
         if (symbols.isEmpty()) {
-            return false
+            return null
         }
 
         val prices = LinkedHashMap<String, Double>()
-        var anyLive = false
+        var freshestLagMs: Long? = null
 
         for (symbol in symbols) {
             try {
@@ -120,9 +143,19 @@ class PaperTradeState(
                 if (quote != null && quote.price > 0.0) {
                     prices[symbol] = quote.price
 
-                    if (quote.source == MarketDataSource.LIVE) {
-                        anyLive = true
-                    }
+                    val lag = (
+                        System.currentTimeMillis() -
+                            quote.timestamp
+                        ).coerceAtLeast(0L)
+
+                    val current = freshestLagMs
+
+                    freshestLagMs =
+                        if (current == null || lag < current) {
+                            lag
+                        } else {
+                            current
+                        }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -146,7 +179,92 @@ class PaperTradeState(
             }
         }
 
-        return anyLive
+        return freshestLagMs
+    }
+
+    // Learn how delayed the feed is, only while the market is open.
+    private fun updateFeedDelay(freshestLagMs: Long?) {
+
+        if (freshestLagMs == null ||
+            freshestLagMs > MAX_FEED_DELAY_MS
+        ) {
+            return
+        }
+
+        val ist = istNow()
+
+        if (!ist.isWeekend &&
+            ist.msOfDay in OPEN_MS until CLOSE_MS
+        ) {
+            feedDelayMs = freshestLagMs
+        }
+    }
+
+    private fun nextDelayMs(freshestLagMs: Long?): Long {
+
+        val ist = istNow()
+
+        if (ist.isWeekend) {
+            return WEEKEND_INTERVAL_MS
+        }
+
+        val now = ist.msOfDay
+
+        // Before open: sleep until just before the open
+        if (now < OPEN_MS) {
+            return (OPEN_MS - now).coerceIn(
+                LIVE_INTERVAL_MS,
+                AFTER_HOURS_INTERVAL_MS
+            )
+        }
+
+        // Market hours + the feed's own delay after close
+        val windowEnd = CLOSE_MS + feedDelayMs + 60_000L
+
+        if (now < windowEnd) {
+
+            val feedIsFresh =
+                freshestLagMs != null &&
+                    freshestLagMs <= MAX_FEED_DELAY_MS
+
+            val justOpened =
+                now - OPEN_MS < MAX_FEED_DELAY_MS
+
+            return if (feedIsFresh || justOpened) {
+                LIVE_INTERVAL_MS
+            } else {
+                QUIET_INTERVAL_MS
+            }
+        }
+
+        return AFTER_HOURS_INTERVAL_MS
+    }
+
+    private class IstTime(
+        val isWeekend: Boolean,
+        val msOfDay: Long
+    )
+
+    private fun istNow(): IstTime {
+
+        val calendar = Calendar.getInstance(
+            TimeZone.getTimeZone("Asia/Kolkata")
+        )
+
+        val day = calendar.get(Calendar.DAY_OF_WEEK)
+
+        val msOfDay = (
+            calendar.get(Calendar.HOUR_OF_DAY) * 3_600_000L +
+                calendar.get(Calendar.MINUTE) * 60_000L +
+                calendar.get(Calendar.SECOND) * 1_000L
+            )
+
+        return IstTime(
+            isWeekend =
+                day == Calendar.SATURDAY ||
+                    day == Calendar.SUNDAY,
+            msOfDay = msOfDay
+        )
     }
 
     // ---------------------------------------------------------
