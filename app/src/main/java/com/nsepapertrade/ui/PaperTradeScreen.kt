@@ -3,6 +3,7 @@ package com.nsepapertrade.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -22,12 +23,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 import com.nsepapertrade.data.MarketQuote
 import com.nsepapertrade.data.PortfolioSnapshot
 import com.nsepapertrade.model.Instrument
 import com.nsepapertrade.model.Position
+import kotlin.math.roundToInt
 
 @Composable
 fun PaperTradeScreen(
@@ -45,6 +51,44 @@ fun PaperTradeScreen(
     var price by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
+
+    // [0] = scroll viewport, [1] = stock selector section
+    val coordinates = remember {
+        arrayOfNulls<LayoutCoordinates>(2)
+    }
+
+    var scrollRequest by remember { mutableStateOf(0) }
+
+    LaunchedEffect(scrollRequest) {
+
+        if (scrollRequest == 0) {
+            return@LaunchedEffect
+        }
+
+        // wait one frame so the selected stock card is laid out
+        withFrameNanos { }
+
+        val viewport = coordinates[0]
+        val selector = coordinates[1]
+
+        if (
+            viewport != null &&
+            selector != null &&
+            viewport.isAttached &&
+            selector.isAttached
+        ) {
+            val delta =
+                selector.positionInRoot().y -
+                    viewport.positionInRoot().y
+
+            val target =
+                (scrollState.value + delta)
+                    .roundToInt()
+                    .coerceAtLeast(0)
+
+            scrollState.animateScrollTo(target)
+        }
+    }
 
     LaunchedEffect(
         selectedInstrument?.symbol,
@@ -71,6 +115,7 @@ fun PaperTradeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .onGloballyPositioned { coordinates[0] = it }
             .verticalScroll(scrollState)
             .navigationBarsPadding()
             .padding(16.dp)
@@ -81,30 +126,52 @@ fun PaperTradeScreen(
             style = MaterialTheme.typography.headlineSmall
         )
 
-        androidx.compose.foundation.layout.Spacer(
+        Spacer(
             modifier = Modifier.height(16.dp)
         )
 
         PortfolioSummary(
             snapshot = snapshot,
-            positions = positions
-        )
+            positions = positions,
+            onPositionClick = { position ->
 
-        androidx.compose.foundation.layout.Spacer(
-            modifier = Modifier.height(16.dp)
-        )
+                val instrument = instruments.firstOrNull {
+                    it.symbol.equals(
+                        position.symbol,
+                        ignoreCase = true
+                    )
+                }
 
-        StockSelector(
-            instruments = instruments,
-            selectedInstrument = selectedInstrument,
-            onInstrumentSelected = {
-                onInstrumentSelected(it)
-                price = ""
-                quantity = ""
+                if (instrument != null) {
+                    onInstrumentSelected(instrument)
+                    price = ""
+                    quantity = ""
+                    scrollRequest++
+                }
             }
         )
 
-        androidx.compose.foundation.layout.Spacer(
+        Spacer(
+            modifier = Modifier.height(16.dp)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates[1] = it }
+        ) {
+            StockSelector(
+                instruments = instruments,
+                selectedInstrument = selectedInstrument,
+                onInstrumentSelected = {
+                    onInstrumentSelected(it)
+                    price = ""
+                    quantity = ""
+                }
+            )
+        }
+
+        Spacer(
             modifier = Modifier.height(16.dp)
         )
 
@@ -119,7 +186,7 @@ fun PaperTradeScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                androidx.compose.foundation.layout.Spacer(
+                Spacer(
                     modifier = Modifier.height(10.dp)
                 )
 
@@ -131,7 +198,7 @@ fun PaperTradeScreen(
                     singleLine = true
                 )
 
-                androidx.compose.foundation.layout.Spacer(
+                Spacer(
                     modifier = Modifier.height(10.dp)
                 )
 
@@ -145,7 +212,7 @@ fun PaperTradeScreen(
             }
         }
 
-        androidx.compose.foundation.layout.Spacer(
+        Spacer(
             modifier = Modifier.height(16.dp)
         )
 
@@ -204,7 +271,7 @@ fun PaperTradeScreen(
             }
         }
 
-        androidx.compose.foundation.layout.Spacer(
+        Spacer(
             modifier = Modifier.height(16.dp)
         )
 
@@ -215,7 +282,7 @@ fun PaperTradeScreen(
             )
         }
 
-        androidx.compose.foundation.layout.Spacer(
+        Spacer(
             modifier = Modifier.height(24.dp)
         )
     }
