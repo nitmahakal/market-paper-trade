@@ -4,12 +4,15 @@ import com.nsepapertrade.model.FnoContract
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.model.FnoUnderlyingType
 import com.nsepapertrade.model.OptionType
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 private class CachedResponse(
     val body: String,
@@ -29,11 +32,8 @@ class NseFnoMarketDataProvider :
             "$BASE_URL/api/NextApi/apiClient/GetQuoteApi" +
                 "?functionName=getSymbolDerivativesData&symbol="
 
-        private const val OPTION_CHAIN_INDEX_URL =
-            "$BASE_URL/api/option-chain-indices?symbol="
-
-        private const val OPTION_CHAIN_EQUITY_URL =
-            "$BASE_URL/api/option-chain-equities?symbol="
+        private const val OPTION_CHAIN_URL =
+            "$BASE_URL/api/option-chain-v3?type="
 
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
@@ -50,6 +50,49 @@ class NseFnoMarketDataProvider :
         private var cookieTime = 0L
         private val responseCache =
             HashMap<String, CachedResponse>()
+
+        // Lot size per underlying (filled from the stored contract
+        // list). The v3 chain may not carry lot sizes.
+        @Volatile
+        private var lotSizes: Map<String, Int> = emptyMap()
+
+        fun setLotSizes(sizes: Map<String, Int>) {
+            lotSizes = sizes
+        }
+
+        private val EXPIRY_PATTERNS = listOf(
+            "dd-MMM-yyyy",
+            "ddMMMyyyy",
+            "dd-MM-yyyy",
+            "yyyy-MM-dd"
+        )
+
+        // NSE wants the expiry as 25-Nov-2026.
+        fun normalizeExpiry(expiry: String): String {
+
+            val text = expiry.trim()
+
+            for (pattern in EXPIRY_PATTERNS) {
+                try {
+                    val parser =
+                        SimpleDateFormat(pattern, Locale.US)
+
+                    parser.isLenient = false
+
+                    val date = parser.parse(text) ?: continue
+
+                    return SimpleDateFormat(
+                        "dd-MMM-yyyy",
+                        Locale.US
+                    ).format(date)
+
+                } catch (_: Exception) {
+                    // try the next format
+                }
+            }
+
+            return text
+        }
     }
 
     override suspend fun getQuote(
@@ -58,15 +101,47 @@ class NseFnoMarketDataProvider :
 
         val symbol = encode(contract.underlying)
 
-        val response = fetchJson(
-            url = QUOTE_URL + symbol,
-            cacheMs = QUOTE_CACHE_MS
-        )
+        var primary: MarketQuote? = null
+        var failure: Exception? = null
 
-        return findContractPrice(
-            response = response,
-            contract = contract
-        )
+        try {
+            val response = fetchJson(
+                url = QUOTE_URL + symbol,
+                cacheMs = QUOTE_CACHE_MS
+            )
+
+            primary = findContractPrice(
+                response = response,
+                contract = contract
+            )
+        } catch (e: IOException) {
+            failure = e
+        }
+
+        if (primary != null) {
+            return primary
+        }
+
+        // Options: the option chain has every strike's last price.
+        if (contract.contractType == FnoContractType.OPTION) {
+            try {
+                val fromChain = quoteFromChain(contract)
+
+                if (fromChain != null) {
+                    return fromChain
+                }
+            } catch (e: IOException) {
+                if (failure == null) {
+                    failure = e
+                }
+            }
+        }
+
+        if (failure != null) {
+            throw failure
+        }
+
+        return null
     }
 
     override suspend fun getOptionChain(
@@ -81,17 +156,8 @@ class NseFnoMarketDataProvider :
             return null
         }
 
-        val symbol = encode(normalizedUnderlying)
-
-        val apiUrl =
-            if (isIndexUnderlying(normalizedUnderlying)) {
-                OPTION_CHAIN_INDEX_URL + symbol
-            } else {
-                OPTION_CHAIN_EQUITY_URL + symbol
-            }
-
         val response = fetchJson(
-            url = apiUrl,
+            url = chainUrl(normalizedUnderlying, expiry),
             cacheMs = CHAIN_CACHE_MS
         )
 
@@ -99,6 +165,68 @@ class NseFnoMarketDataProvider :
             response = response,
             underlying = normalizedUnderlying,
             expiry = expiry
+        )
+    }
+
+    private fun chainUrl(
+        underlying: String,
+        expiry: String
+    ): String {
+
+        val type =
+            if (isIndexUnderlying(underlying)) {
+                "Indices"
+            } else {
+                "Equity"
+            }
+
+        return OPTION_CHAIN_URL + type +
+            "&symbol=" + encode(underlying) +
+            "&expiry=" + encode(normalizeExpiry(expiry))
+    }
+
+    private fun quoteFromChain(
+        contract: FnoContract
+    ): MarketQuote? {
+
+        val response = fetchJson(
+            url = chainUrl(
+                contract.underlying.uppercase(),
+                contract.expiry
+            ),
+            cacheMs = CHAIN_CACHE_MS
+        )
+
+        val chain = parseOptionChain(
+            response = response,
+            underlying = contract.underlying.uppercase(),
+            expiry = contract.expiry
+        ) ?: return null
+
+        val row = chain.rows.firstOrNull {
+            kotlin.math.abs(
+                it.strikePrice - contract.strikePrice
+            ) < 0.001
+        } ?: return null
+
+        val option =
+            if (contract.optionType == OptionType.CE) {
+                row.call
+            } else {
+                row.put
+            }
+
+        val price = option?.ltp ?: 0.0
+
+        if (price <= 0.0) {
+            return null
+        }
+
+        return MarketQuote(
+            symbol = contract.symbol,
+            price = price,
+            timestamp = System.currentTimeMillis(),
+            source = MarketDataSource.LIVE
         )
     }
 
@@ -463,6 +591,9 @@ class NseFnoMarketDataProvider :
         return null
     }
 
+    // Reads the v3 chain. Field names are read loosely, and the
+    // requested expiry is used for every contract, so the symbols
+    // match the stored contract list exactly.
     private fun parseOptionChain(
         response: String,
         underlying: String,
@@ -471,13 +602,21 @@ class NseFnoMarketDataProvider :
 
         val root = parseRoot(response)
 
-        val records =
-            root.optJSONObject("records")
-                ?: return null
+        val data = findChainData(root) ?: return null
 
-        val data =
-            records.optJSONArray("data")
-                ?: return null
+        val wantedExpiry = normalizeExpiry(expiry)
+
+        val items = ArrayList<JSONObject>()
+
+        for (index in 0 until data.length()) {
+            data.optJSONObject(index)?.let { items.add(it) }
+        }
+
+        // If the reply says which expiry each row belongs to and some
+        // match, keep only those; otherwise trust the request.
+        val anyExpiryMatch = items.any {
+            normalizeExpiry(itemExpiry(it)) == wantedExpiry
+        }
 
         val rows =
             linkedMapOf<
@@ -485,24 +624,15 @@ class NseFnoMarketDataProvider :
                 MutableList<FnoOptionChainContract>
             >()
 
-        for (index in 0 until data.length()) {
+        for (item in items) {
 
-            val item =
-                data.optJSONObject(index)
-                    ?: continue
-
-            val itemExpiry =
-                item.optString("expiryDate")
-
-            if (!expiryMatches(itemExpiry, expiry)) {
+            if (anyExpiryMatch &&
+                normalizeExpiry(itemExpiry(item)) != wantedExpiry
+            ) {
                 continue
             }
 
-            val strike =
-                item.optDouble(
-                    "strikePrice",
-                    Double.NaN
-                )
+            val strike = strikeOf(item)
 
             if (strike.isNaN()) {
                 continue
@@ -512,7 +642,7 @@ class NseFnoMarketDataProvider :
                 parseOptionContract(
                     item = item,
                     underlying = underlying,
-                    expiry = itemExpiry,
+                    expiry = expiry,
                     strike = strike,
                     optionType = OptionType.CE
                 )
@@ -521,7 +651,7 @@ class NseFnoMarketDataProvider :
                 parseOptionContract(
                     item = item,
                     underlying = underlying,
-                    expiry = itemExpiry,
+                    expiry = expiry,
                     strike = strike,
                     optionType = OptionType.PE
                 )
@@ -542,6 +672,7 @@ class NseFnoMarketDataProvider :
 
         val chainRows =
             rows.entries
+                .filter { it.value.isNotEmpty() }
                 .sortedBy { it.key }
                 .map { entry ->
 
@@ -570,6 +701,70 @@ class NseFnoMarketDataProvider :
         )
     }
 
+    private fun findChainData(
+        root: JSONObject
+    ): JSONArray? {
+
+        root.optJSONObject("records")
+            ?.optJSONArray("data")
+            ?.let { return it }
+
+        root.optJSONObject("filtered")
+            ?.optJSONArray("data")
+            ?.let { return it }
+
+        return root.optJSONArray("data")
+    }
+
+    private fun itemExpiry(item: JSONObject): String {
+
+        for (key in listOf("expiryDates", "expiryDate")) {
+            val value = item.optString(key, "")
+
+            if (value.isNotBlank()) {
+                return value
+            }
+        }
+
+        for (side in listOf("CE", "PE")) {
+            val inner = item.optJSONObject(side) ?: continue
+
+            for (key in listOf("expiryDates", "expiryDate")) {
+                val value = inner.optString(key, "")
+
+                if (value.isNotBlank()) {
+                    return value
+                }
+            }
+        }
+
+        return ""
+    }
+
+    private fun strikeOf(item: JSONObject): Double {
+
+        if (item.has("strikePrice") &&
+            !item.isNull("strikePrice")
+        ) {
+            return item.optDouble("strikePrice", Double.NaN)
+        }
+
+        for (side in listOf("CE", "PE")) {
+            val inner = item.optJSONObject(side) ?: continue
+
+            if (inner.has("strikePrice") &&
+                !inner.isNull("strikePrice")
+            ) {
+                return inner.optDouble(
+                    "strikePrice",
+                    Double.NaN
+                )
+            }
+        }
+
+        return Double.NaN
+    }
+
     private fun parseOptionContract(
         item: JSONObject,
         underlying: String,
@@ -581,6 +776,16 @@ class NseFnoMarketDataProvider :
         val optionData =
             item.optJSONObject(optionType.name)
                 ?: return null
+
+        var lotSize =
+            optionData.optInt(
+                "marketLot",
+                item.optInt("marketLot", 0)
+            )
+
+        if (lotSize <= 0) {
+            lotSize = lotSizes[underlying] ?: 1
+        }
 
         val contract =
             FnoContract(
@@ -595,16 +800,8 @@ class NseFnoMarketDataProvider :
                 expiry = expiry,
                 strikePrice = strike,
                 optionType = optionType,
-                lotSize =
-                    optionData.optInt(
-                        "marketLot",
-                        item.optInt("marketLot", 0)
-                    )
+                lotSize = lotSize
             )
-
-        if (contract.lotSize <= 0) {
-            return null
-        }
 
         return FnoOptionChainContract(
             contract = contract,
@@ -612,14 +809,16 @@ class NseFnoMarketDataProvider :
                 optionData,
                 "lastPrice"
             ),
-            bidPrice = positiveOrZero(
+            bidPrice = firstPositive(
                 optionData,
-                "bidprice"
-            ),
-            askPrice = positiveOrZero(
+                "bidprice",
+                "bidPrice"
+            ) ?: 0.0,
+            askPrice = firstPositive(
                 optionData,
-                "askPrice"
-            ),
+                "askPrice",
+                "askprice"
+            ) ?: 0.0,
             openInterest =
                 optionData.optLong(
                     "openInterest",
