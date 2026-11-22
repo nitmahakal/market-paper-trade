@@ -2,10 +2,17 @@ package com.nsepapertrade.data
 
 import android.content.Context
 import com.nsepapertrade.model.FnoContract
+import com.nsepapertrade.model.FnoUnderlyingType
 
 class StoredFnoMarginDataProvider(
     context: Context
 ) : FnoMarginDataProvider {
+
+    companion object {
+        // Used only when the SPAN file data is missing.
+        private const val INDEX_APPROX_RATE = 0.12
+        private const val STOCK_APPROX_RATE = 0.18
+    }
 
     private val store =
         FnoMarginStore(context)
@@ -64,14 +71,18 @@ class StoredFnoMarginDataProvider(
         val margin =
             getMargin(contract.symbol)
 
-        require(
-            margin != null &&
-                margin.futuresMargin > 0.0
+        if (margin != null &&
+            margin.futuresMargin > 0.0
         ) {
-            "F&O futures margin data is not available for ${contract.displayName}."
+            return margin.futuresMargin * lots
         }
 
-        return margin.futuresMargin * lots
+        // No SPAN data: approximate from the contract value.
+        return approximateMargin(
+            contract = contract,
+            lots = lots,
+            referencePrice = price
+        )
     }
 
     override fun getOptionSellMargin(
@@ -83,14 +94,51 @@ class StoredFnoMarginDataProvider(
         val margin =
             getMargin(contract.symbol)
 
-        require(
-            margin != null &&
-                margin.optionSellMargin > 0.0
+        if (margin != null &&
+            margin.optionSellMargin > 0.0
         ) {
-            "F&O option-writing margin data is not available for ${contract.displayName}."
+            return margin.optionSellMargin * lots
         }
 
-        return margin.optionSellMargin * lots
+        // No SPAN data: approximate from the strike value.
+        val reference =
+            if (contract.strikePrice > 0.0) {
+                contract.strikePrice
+            } else {
+                price
+            }
+
+        return approximateMargin(
+            contract = contract,
+            lots = lots,
+            referencePrice = reference
+        )
+    }
+
+    private fun approximateMargin(
+        contract: FnoContract,
+        lots: Int,
+        referencePrice: Double
+    ): Double {
+
+        require(referencePrice > 0.0 && contract.lotSize > 0) {
+            "Cannot work out margin for ${contract.displayName}: " +
+                "price or lot size is missing."
+        }
+
+        val rate =
+            if (contract.underlyingType ==
+                FnoUnderlyingType.INDEX
+            ) {
+                INDEX_APPROX_RATE
+            } else {
+                STOCK_APPROX_RATE
+            }
+
+        return referencePrice *
+            contract.lotSize *
+            lots *
+            rate
     }
 
     private fun save() {
