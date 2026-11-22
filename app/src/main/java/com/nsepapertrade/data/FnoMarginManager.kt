@@ -1,6 +1,8 @@
 package com.nsepapertrade.data
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class FnoMarginManager(
     context: Context,
@@ -14,7 +16,16 @@ class FnoMarginManager(
         List<FnoContractMargin> =
         store.loadMargins()
 
+    // Network and file work must never run on the main thread.
     suspend fun update():
+        FnoMarginUpdateResult {
+
+        return withContext(Dispatchers.IO) {
+            doUpdate()
+        }
+    }
+
+    private suspend fun doUpdate():
         FnoMarginUpdateResult {
 
         return try {
@@ -62,6 +73,7 @@ class FnoMarginManager(
                 updateTime = 0L,
                 message =
                     e.message
+                        ?: e.javaClass.simpleName
                         ?: "F&O margin update failed."
             )
         }
