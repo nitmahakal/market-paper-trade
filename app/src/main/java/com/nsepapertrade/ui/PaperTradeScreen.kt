@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -37,8 +38,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nsepapertrade.data.MarketClock
 import com.nsepapertrade.data.MarketQuote
 import com.nsepapertrade.data.PortfolioSnapshot
+import com.nsepapertrade.data.QueuedOrder
 import com.nsepapertrade.model.Instrument
 import com.nsepapertrade.model.Position
 import com.nsepapertrade.ui.theme.lossColor
@@ -57,7 +60,9 @@ fun PaperTradeScreen(
     selectedInstrument: Instrument?,
     onInstrumentSelected: (Instrument?) -> Unit,
     onBuy: (String, Int, Double) -> Unit,
-    onSell: (String, Int, Double) -> Unit
+    onSell: (String, Int, Double) -> Unit,
+    queuedOrders: List<QueuedOrder> = emptyList(),
+    onCancelQueued: (Long) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
@@ -103,7 +108,7 @@ fun PaperTradeScreen(
         }
     }
 
-    // After a successful trade: close the order panel,
+    // After a successful (or queued) trade: close the order panel,
     // leave only the stock name in the search box.
     LaunchedEffect(snapshot, message) {
         if (awaitingTrade) {
@@ -111,7 +116,9 @@ fun PaperTradeScreen(
 
             if (
                 message.startsWith("BUY successful") ||
-                message.startsWith("SELL successful")
+                message.startsWith("SELL successful") ||
+                message.startsWith("BUY queued") ||
+                message.startsWith("SELL queued")
             ) {
                 showOrder = false
                 focusManager.clearFocus()
@@ -221,6 +228,52 @@ fun PaperTradeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
+        }
+
+        if (queuedOrders.isNotEmpty()) {
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+            ) {
+
+                Text(
+                    text = "Queued orders (execute at open price)",
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                queuedOrders.forEach { order ->
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement =
+                            Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+
+                        Text(
+                            text = "${order.side.name}  " +
+                                "${order.symbol} × ${order.quantity}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Text(
+                            text = "✕",
+                            color = MaterialTheme
+                                .colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clickable {
+                                    onCancelQueued(order.id)
+                                }
+                                .padding(8.dp)
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -359,6 +412,14 @@ private fun OrderPanel(
                         }
                     )
                 }
+            }
+
+            if (!MarketClock.isOpen()) {
+                Text(
+                    text = MarketClock.closedNotice(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             if (validQuantity != null && validPrice != null) {
