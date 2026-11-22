@@ -697,8 +697,44 @@ class NseFnoMarketDataProvider :
             underlying = underlying,
             expiry = expiry,
             rows = chainRows,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            underlyingValue = findUnderlyingValue(root, data)
         )
+    }
+
+    // The stock / index price NSE sends along with the chain.
+    private fun findUnderlyingValue(
+        root: JSONObject,
+        data: JSONArray
+    ): Double {
+
+        val direct =
+            root.optJSONObject("records")
+                ?.optDouble("underlyingValue", 0.0)
+                ?: 0.0
+
+        if (direct > 0.0) {
+            return direct
+        }
+
+        for (index in 0 until data.length()) {
+
+            val item = data.optJSONObject(index) ?: continue
+
+            for (side in listOf("CE", "PE")) {
+
+                val value =
+                    item.optJSONObject(side)
+                        ?.optDouble("underlyingValue", 0.0)
+                        ?: 0.0
+
+                if (value > 0.0) {
+                    return value
+                }
+            }
+        }
+
+        return 0.0
     }
 
     private fun findChainData(
