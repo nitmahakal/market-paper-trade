@@ -451,7 +451,11 @@ class NseFnoMarketDataProvider :
                     price = price,
                     timestamp =
                         System.currentTimeMillis(),
-                    source = MarketDataSource.LIVE
+                    source = MarketDataSource.LIVE,
+                    openPrice = positiveOrZero(
+                        item,
+                        "openPrice"
+                    )
                 )
             }
         }
