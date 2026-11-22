@@ -6,7 +6,9 @@ data class FnoOptionChain(
     val underlying: String,
     val expiry: String,
     val rows: List<FnoOptionChainRow>,
-    val timestamp: Long
+    val timestamp: Long,
+    // Price of the stock / index itself (0.0 if NSE did not send it).
+    val underlyingValue: Double = 0.0
 )
 
 data class FnoOptionChainRow(
