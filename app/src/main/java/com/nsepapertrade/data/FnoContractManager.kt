@@ -4,6 +4,8 @@ import android.content.Context
 import com.nsepapertrade.model.FnoContract
 import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.model.OptionType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,7 +23,14 @@ class FnoContractManager(
     fun getLastUpdateTime(): Long =
         store.getLastUpdateTime()
 
+    // Network and file work must never run on the main thread.
     suspend fun update(): FnoContractUpdateResult {
+        return withContext(Dispatchers.IO) {
+            doUpdate()
+        }
+    }
+
+    private suspend fun doUpdate(): FnoContractUpdateResult {
         return try {
             val downloadedContracts =
                 provider.fetchContracts()
@@ -70,6 +79,7 @@ class FnoContractManager(
                 updateTime = 0L,
                 message =
                     e.message
+                        ?: e.javaClass.simpleName
                         ?: "F&O contract update failed."
             )
         }
