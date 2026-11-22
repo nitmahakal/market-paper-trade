@@ -47,7 +47,12 @@ import com.nsepapertrade.data.FnoMarginManager
 import com.nsepapertrade.data.NseSpanMarginProvider
 import com.nsepapertrade.data.FnoContractStore
 import com.nsepapertrade.data.NseFnoContractProvider
-import com.nsepapertrade.data.FnoTradeEngine
+import com.nsepapertrade.data.FnoTradeState
+import com.nsepapertrade.data.MarketClock
+import com.nsepapertrade.data.OrderBook
+import com.nsepapertrade.data.OrderKind
+import com.nsepapertrade.model.TradeSide
+import com.nsepapertrade.ui.FnoPositionsPanel
 import com.nsepapertrade.data.InstrumentRepository
 import com.nsepapertrade.data.MarketDataState
 import com.nsepapertrade.data.MarketQuote
@@ -95,8 +100,19 @@ fun PaperTradeApp() {
         PaperTradeEngine(context)
     }
 
+    val equityOrderBook = remember(context) {
+        OrderBook(context, OrderKind.EQUITY)
+    }
+
     val state = remember {
-        PaperTradeState(engine)
+        PaperTradeState(
+            engine = engine,
+            orderBook = equityOrderBook
+        )
+    }
+
+    val fnoState = remember(context) {
+        FnoTradeState(context)
     }
 
     LaunchedEffect(state.selectedInstrument) {
@@ -308,6 +324,15 @@ fun PaperTradeApp() {
                         price =
                             price
                     )
+                },
+
+                queuedOrders =
+                    state.queuedOrders,
+
+                onCancelQueued = {
+                    id ->
+
+                    state.cancelQueuedOrder(id)
                 }
             )
 
@@ -407,6 +432,9 @@ fun PaperTradeApp() {
                         "OPTIONS"
                 },
 
+                fnoState =
+                    fnoState,
+
                 provider =
                     fnoMarketDataProvider
                 )
@@ -501,6 +529,7 @@ private fun FnoHomePlaceholder(
     optionCount: Int,
     onFuturesSelected: () -> Unit,
     onOptionsSelected: () -> Unit,
+    fnoState: FnoTradeState,
     provider: NseFnoMarketDataProvider
 ) {
 
@@ -533,30 +562,6 @@ private fun FnoHomePlaceholder(
     }
 
     val context = LocalContext.current
-
-    val fnoTradeEngine = remember(context) {
-        FnoTradeEngine(context)
-    }
-
-    var fnoPortfolioSnapshot by remember {
-        mutableStateOf(
-            fnoTradeEngine.getPortfolioSnapshot()
-        )
-    }
-
-    var fnoPortfolioPositions by remember {
-        mutableStateOf(
-            fnoTradeEngine.getPositions()
-        )
-    }
-
-    fun refreshFnoPortfolio() {
-        fnoPortfolioSnapshot =
-            fnoTradeEngine.getPortfolioSnapshot()
-
-        fnoPortfolioPositions =
-            fnoTradeEngine.getPositions()
-    }
 
     val filteredFutures = remember(
         futureContracts,
@@ -610,7 +615,7 @@ private fun FnoHomePlaceholder(
 
                     errorMessage = ""
 
-                    fnoTradeEngine.updateMarketPrice(
+                    fnoState.updateMarketPrice(
                         contractSymbol =
                             contract.symbol,
                         price =
@@ -656,151 +661,10 @@ private fun FnoHomePlaceholder(
                 Modifier.padding(top = 2.dp)
         )
 
-                    androidx.compose.material3.Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Text(
-                                text = "F&O PORTFOLIO",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 10.dp),
-                                horizontalArrangement =
-                                    Arrangement.spacedBy(8.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        text = "AVAILABLE CASH",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                    Text(
-                                        text = "₹%.2f".format(
-                                            fnoPortfolioSnapshot.availableCash
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        text = "RESERVED MARGIN",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                    Text(
-                                        text = "₹%.2f".format(
-                                            fnoPortfolioSnapshot.reservedMargin
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 10.dp),
-                                horizontalArrangement =
-                                    Arrangement.spacedBy(8.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        text = "REALIZED P&L",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                    Text(
-                                        text = "₹%.2f".format(
-                                            fnoPortfolioSnapshot.realizedPnl
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        text = "UNREALIZED P&L",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                    Text(
-                                        text = "₹%.2f".format(
-                                            fnoPortfolioSnapshot.unrealizedPnl
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = "TOTAL VALUE  ₹%.2f".format(
-                                    fnoPortfolioSnapshot.totalValue
-                                ),
-                                style = MaterialTheme.typography.titleSmall,
-                                modifier = Modifier.padding(top = 10.dp)
-                            )
-
-                            Text(
-                                text = "OPEN F&O POSITIONS",
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.padding(top = 14.dp)
-                            )
-
-                            if (fnoPortfolioPositions.isEmpty()) {
-                                Text(
-                                    text = "No open F&O positions",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
-                            } else {
-                                fnoPortfolioPositions.forEach { position ->
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 10.dp)
-                                    ) {
-                                        Text(
-                                            text = position.contract.displayName,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-
-                                        Text(
-                                            text =
-                                                "${position.side}  |  Lots: ${position.lots}  |  Avg: %.2f  |  LTP: %.2f"
-                                                    .format(
-                                                        position.averagePrice,
-                                                        position.lastPrice
-                                                    ),
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-
-                                        Text(
-                                            text =
-                                                "Margin: ₹%.2f  |  Unrealized P&L: ₹%.2f"
-                                                    .format(
-                                                        position.reservedMargin,
-                                                        position.unrealizedPnl
-                                                    ),
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+        FnoPositionsPanel(
+            state = fnoState,
+            modifier = Modifier.padding(top = 16.dp)
+        )
 
         Row(
             modifier = Modifier
@@ -1140,6 +1004,18 @@ private fun FnoHomePlaceholder(
                             )
                         }
 
+                        if (!MarketClock.isOpen()) {
+                            Text(
+                                text = MarketClock.closedNotice(),
+                                style =
+                                    MaterialTheme.typography.bodySmall,
+                                color =
+                                    MaterialTheme.colorScheme.error,
+                                modifier =
+                                    Modifier.padding(top = 10.dp)
+                            )
+                        }
+
                         OutlinedTextField(
                             value = lotsText,
 
@@ -1186,42 +1062,26 @@ private fun FnoHomePlaceholder(
                                 onClick = {
 
                                     if (
-                                        price > 0.0 &&
-                                        lots > 0
-                                    ) {
+                                    lots > 0 &&
+                                        (price > 0.0 || !MarketClock.isOpen())
+                                ) {
 
-                                        val result =
-                                            fnoTradeEngine.buy(
-                                                contract =
-                                                    contract,
-                                                lots =
-                                                    lots,
-                                                price =
-                                                    price
-                                            )
-
-                                        tradeMessage =
-                                            if (
-                                                result.isSuccess
-                                            ) {
-                                                refreshFnoPortfolio()
-                                                "BUY successful"
-
-                                            } else {
-                                                result
-                                                    .exceptionOrNull()
-                                                    ?.message
-                                                    ?: "BUY failed"
-                                            }
-                                    }
+                                    tradeMessage =
+                                        fnoState.placeOrder(
+                                            contract = contract,
+                                            side = TradeSide.BUY,
+                                            lots = lots,
+                                            price = price
+                                        ).message
+                                }
                                 },
 
                                 modifier =
                                     Modifier.weight(1f),
 
                                 enabled =
-                                    price > 0.0 &&
-                                        lots > 0
+                                    lots > 0 &&
+                                        (price > 0.0 || !MarketClock.isOpen())
                             ) {
                                 Text("BUY")
                             }
@@ -1230,41 +1090,26 @@ private fun FnoHomePlaceholder(
                                 onClick = {
 
                                     if (
-                                        price > 0.0 &&
-                                        lots > 0
-                                    ) {
+                                    lots > 0 &&
+                                        (price > 0.0 || !MarketClock.isOpen())
+                                ) {
 
-                                        val result =
-                                            fnoTradeEngine.sell(
-                                                contract =
-                                                    contract,
-                                                lots =
-                                                    lots,
-                                                price =
-                                                    price
-                                            )
-
-                                        tradeMessage =
-                                            if (
-                                                result.isSuccess
-                                            ) {
-                                                refreshFnoPortfolio()
-                                                "SELL successful"
-                                            } else {
-                                                result
-                                                    .exceptionOrNull()
-                                                    ?.message
-                                                    ?: "SELL failed"
-                                            }
-                                    }
+                                    tradeMessage =
+                                        fnoState.placeOrder(
+                                            contract = contract,
+                                            side = TradeSide.SELL,
+                                            lots = lots,
+                                            price = price
+                                        ).message
+                                }
                                 },
 
                                 modifier =
                                     Modifier.weight(1f),
 
                                 enabled =
-                                    price > 0.0 &&
-                                        lots > 0
+                                    lots > 0 &&
+                                        (price > 0.0 || !MarketClock.isOpen())
                             ) {
                                 Text("SELL")
                             }
@@ -1361,7 +1206,7 @@ private fun FnoHomePlaceholder(
 
                         if (result != null) {
 
-                            fnoTradeEngine.updateMarketPrice(
+                            fnoState.updateMarketPrice(
                                 contractSymbol =
                                     contract.symbol,
                                 price =
@@ -1969,6 +1814,18 @@ private fun FnoHomePlaceholder(
                                             }
                                         }
 
+                                        if (!MarketClock.isOpen()) {
+                            Text(
+                                text = MarketClock.closedNotice(),
+                                style =
+                                    MaterialTheme.typography.bodySmall,
+                                color =
+                                    MaterialTheme.colorScheme.error,
+                                modifier =
+                                    Modifier.padding(top = 10.dp)
+                            )
+                        }
+
                                         OutlinedTextField(
                                             value =
                                                 optionLotsText,
@@ -2025,41 +1882,26 @@ private fun FnoHomePlaceholder(
                                                 onClick = {
 
                                                     if (
-                                                        optionPrice > 0.0 &&
-                                                        optionLots > 0
-                                                    ) {
+                                    optionLots > 0 &&
+                                        (optionPrice > 0.0 || !MarketClock.isOpen())
+                                ) {
 
-                                                        val result =
-                                                            fnoTradeEngine.buy(
-                                                                contract =
-                                                                    contract,
-                                                                lots =
-                                                                    optionLots,
-                                                                price =
-                                                                    optionPrice
-                                                            )
-
-                                                        optionTradeMessage =
-                                                            if (
-                                                                result.isSuccess
-                                                            ) {
-                                                                refreshFnoPortfolio()
-                                                                "BUY successful"
-                                                            } else {
-                                                                result
-                                                                    .exceptionOrNull()
-                                                                    ?.message
-                                                                    ?: "BUY failed"
-                                                            }
-                                                    }
+                                    optionTradeMessage =
+                                        fnoState.placeOrder(
+                                            contract = contract,
+                                            side = TradeSide.BUY,
+                                            lots = optionLots,
+                                            price = optionPrice
+                                        ).message
+                                }
                                                 },
 
                                                 modifier =
                                                     Modifier.weight(1f),
 
                                                 enabled =
-                                                    optionPrice > 0.0 &&
-                                                        optionLots > 0
+                                                    optionLots > 0 &&
+                                                        (optionPrice > 0.0 || !MarketClock.isOpen())
                                             ) {
                                                 Text("BUY")
                                             }
@@ -2068,41 +1910,26 @@ private fun FnoHomePlaceholder(
                                                 onClick = {
 
                                                     if (
-                                                        optionPrice > 0.0 &&
-                                                        optionLots > 0
-                                                    ) {
+                                    optionLots > 0 &&
+                                        (optionPrice > 0.0 || !MarketClock.isOpen())
+                                ) {
 
-                                                        val result =
-                                                            fnoTradeEngine.sell(
-                                                                contract =
-                                                                    contract,
-                                                                lots =
-                                                                    optionLots,
-                                                                price =
-                                                                    optionPrice
-                                                            )
-
-                                                        optionTradeMessage =
-                                                            if (
-                                                                result.isSuccess
-                                                            ) {
-                                                                refreshFnoPortfolio()
-                                                                "SELL successful"
-                                                            } else {
-                                                                result
-                                                                    .exceptionOrNull()
-                                                                    ?.message
-                                                                    ?: "SELL failed"
-                                                            }
-                                                    }
+                                    optionTradeMessage =
+                                        fnoState.placeOrder(
+                                            contract = contract,
+                                            side = TradeSide.SELL,
+                                            lots = optionLots,
+                                            price = optionPrice
+                                        ).message
+                                }
                                                 },
 
                                                 modifier =
                                                     Modifier.weight(1f),
 
                                                 enabled =
-                                                    optionPrice > 0.0 &&
-                                                        optionLots > 0
+                                                    optionLots > 0 &&
+                                                        (optionPrice > 0.0 || !MarketClock.isOpen())
                                             ) {
                                                 Text("SELL")
                                             }
