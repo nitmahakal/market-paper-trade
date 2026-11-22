@@ -137,7 +137,7 @@ class YahooMarketDataProvider : MarketDataProvider {
                         0.0
                     )
                 } else {
-                    lastClose(result)
+                    lastValue(result, "close")
                 }
 
             if (price == null || price <= 0.0) {
@@ -167,7 +167,8 @@ class YahooMarketDataProvider : MarketDataProvider {
                 symbol = instrument.symbol,
                 price = price,
                 timestamp = marketTimeMs,
-                source = source
+                source = source,
+                openPrice = lastValue(result, "open") ?: 0.0
             )
 
         } catch (_: JSONException) {
@@ -176,23 +177,25 @@ class YahooMarketDataProvider : MarketDataProvider {
         }
     }
 
-    private fun lastClose(
-        result: JSONObject
+    // Last non-null value of indicators.quote[0].<field>
+    private fun lastValue(
+        result: JSONObject,
+        field: String
     ): Double? {
 
-        val closes =
+        val values =
             result
                 .optJSONObject("indicators")
                 ?.optJSONArray("quote")
                 ?.optJSONObject(0)
-                ?.optJSONArray("close")
+                ?.optJSONArray(field)
                 ?: return null
 
         var last: Double? = null
 
-        for (i in 0 until closes.length()) {
-            if (!closes.isNull(i)) {
-                last = closes.getDouble(i)
+        for (i in 0 until values.length()) {
+            if (!values.isNull(i)) {
+                last = values.getDouble(i)
             }
         }
 
