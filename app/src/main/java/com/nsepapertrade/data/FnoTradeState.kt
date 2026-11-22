@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.nsepapertrade.model.FnoContract
+import com.nsepapertrade.model.FnoContractType
 import com.nsepapertrade.model.FnoPortfolioSnapshot
 import com.nsepapertrade.model.FnoPosition
 import com.nsepapertrade.model.FnoPositionSide
@@ -40,6 +41,8 @@ class FnoTradeState(
         YahooMarketDataProvider()
 ) : RememberObserver {
 
+    private val appContext = context.applicationContext
+
     private val engine = FnoTradeEngine(context)
 
     private val book = OrderBook(context, OrderKind.FNO)
@@ -65,6 +68,9 @@ class FnoTradeState(
         private set
 
     private var refreshScope: CoroutineScope? = null
+
+    @Volatile
+    private var lotSizesLoaded = false
 
     // ---------------------------------------------------------
     // Orders from the screen
@@ -282,7 +288,38 @@ class FnoTradeState(
         refreshScope = null
     }
 
+    // Gives the option chain reader the real lot size of each
+    // underlying (it comes from the stored contract list).
+    private fun loadLotSizes() {
+        try {
+            val sizes = HashMap<String, Int>()
+
+            FnoContractStore(appContext)
+                .loadContracts()
+                .forEach { contract ->
+                    if (contract.contractType ==
+                        FnoContractType.OPTION &&
+                        contract.lotSize > 0
+                    ) {
+                        sizes[contract.underlying.uppercase()] =
+                            contract.lotSize
+                    }
+                }
+
+            if (sizes.isNotEmpty()) {
+                NseFnoMarketDataProvider.setLotSizes(sizes)
+                lotSizesLoaded = true
+            }
+        } catch (e: Exception) {
+            // the contract list may still be downloading; retry later
+        }
+    }
+
     private suspend fun refreshOnce() {
+
+        if (!lotSizesLoaded) {
+            loadLotSizes()
+        }
 
         // Everything that needs a price: open positions,
         // contracts with target / stop-loss, queued orders.
