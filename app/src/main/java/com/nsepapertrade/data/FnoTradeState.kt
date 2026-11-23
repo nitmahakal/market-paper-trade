@@ -11,6 +11,7 @@ import com.nsepapertrade.model.FnoPortfolioSnapshot
 import com.nsepapertrade.model.FnoPosition
 import com.nsepapertrade.model.FnoPositionSide
 import com.nsepapertrade.model.Instrument
+import com.nsepapertrade.model.OptionType
 import com.nsepapertrade.model.TradeSide
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +25,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 data class FnoOrderResult(
     val success: Boolean,
@@ -143,6 +145,32 @@ class FnoTradeState(
         }
     }
 
+    // Sets a target / stop-loss after fetching a fresh price, so the
+    // check never runs against an old price.
+    suspend fun addExitOrderChecked(
+        contract: FnoContract,
+        type: ExitType,
+        lots: Int,
+        triggerPrice: Double
+    ): FnoOrderResult {
+
+        val fresh = freshPrice(contract)
+
+        return withContext(Dispatchers.Main) {
+
+            if (fresh > 0.0) {
+                engine.updateMarketPrice(
+                    contractSymbol = contract.symbol,
+                    price = fresh
+                )
+
+                refreshState()
+            }
+
+            addExitOrder(contract, type, lots, triggerPrice)
+        }
+    }
+
     fun addExitOrder(
         contract: FnoContract,
         type: ExitType,
@@ -192,7 +220,8 @@ class FnoTradeState(
                     "For a ${position.side.name} position the " +
                         "${typeLabel(type)} must be " +
                         (if (mustBeAbove) "above" else "below") +
-                        " the current price (₹${money(last)})."
+                        " the current price ₹${money(last)} " +
+                        "(you entered ₹${money(triggerPrice)})."
                 )
             }
         }
@@ -216,6 +245,97 @@ class FnoTradeState(
             "${typeLabel(type)} set: $lots lots at " +
                 "₹${money(triggerPrice)}"
         )
+    }
+
+    // Closes some or all lots of a position at the market price.
+    // Market closed: queued, fills at the open price.
+    suspend fun closeAtMarket(
+        contract: FnoContract,
+        lots: Int
+    ): FnoOrderResult {
+
+        val fresh = freshPrice(contract)
+
+        return withContext(Dispatchers.Main) {
+
+            val position = engine.getPositions().firstOrNull {
+                it.contract.symbol.equals(
+                    contract.symbol,
+                    ignoreCase = true
+                )
+            } ?: return@withContext FnoOrderResult(
+                false,
+                "No open position in this contract."
+            )
+
+            if (lots <= 0 || lots > position.lots) {
+                return@withContext FnoOrderResult(
+                    false,
+                    "Lots must be between 1 and ${position.lots}."
+                )
+            }
+
+            val closingSide =
+                if (position.side == FnoPositionSide.LONG) {
+                    TradeSide.SELL
+                } else {
+                    TradeSide.BUY
+                }
+
+            val open = MarketClock.isOpen()
+
+            if (!open) {
+                val alreadyQueued = book.getQueuedOrders()
+                    .filter {
+                        it.symbol.equals(
+                            contract.symbol,
+                            ignoreCase = true
+                        ) && it.side == closingSide
+                    }
+                    .sumOf { it.quantity }
+
+                if (alreadyQueued + lots > position.lots) {
+                    return@withContext FnoOrderResult(
+                        false,
+                        "$alreadyQueued lots are already queued to " +
+                            "close this position. Only " +
+                            "${position.lots - alreadyQueued} more " +
+                            "can be queued."
+                    )
+                }
+            }
+
+            val price =
+                if (fresh > 0.0) fresh else position.lastPrice
+
+            if (fresh > 0.0) {
+                engine.updateMarketPrice(
+                    contractSymbol = contract.symbol,
+                    price = fresh
+                )
+            }
+
+            val result = placeOrder(
+                contract = position.contract,
+                side = closingSide,
+                lots = lots,
+                price = price
+            )
+
+            if (result.success && open) {
+                log(
+                    "Closed at market: ${contract.displayName} — " +
+                        "$lots lots @ ₹${money(price)}"
+                )
+
+                FnoOrderResult(
+                    true,
+                    "Closed $lots lots at ₹${money(price)}"
+                )
+            } else {
+                result
+            }
+        }
     }
 
     fun cancelExitOrder(id: Long) {
@@ -315,6 +435,100 @@ class FnoTradeState(
         }
     }
 
+    // ---------------------------------------------------------
+    // Prices
+    // ---------------------------------------------------------
+
+    // Options: the price comes from the option chain (the same
+    // price the option screen shows). Futures: the normal quote.
+    // needOpenPrice: also read today's open (for queued orders).
+    private suspend fun quoteFor(
+        contract: FnoContract,
+        needOpenPrice: Boolean
+    ): MarketQuote? {
+
+        if (contract.contractType == FnoContractType.OPTION &&
+            provider is FnoOptionChainProvider
+        ) {
+            try {
+                val chain = provider.getOptionChain(
+                    contract.underlying,
+                    contract.expiry
+                )
+
+                val ltp =
+                    if (chain != null) {
+                        ltpFromChain(chain, contract)
+                    } else {
+                        0.0
+                    }
+
+                if (ltp > 0.0) {
+
+                    var openPrice = 0.0
+
+                    if (needOpenPrice) {
+                        try {
+                            openPrice =
+                                provider.getQuote(contract)
+                                    ?.openPrice ?: 0.0
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            // no open price: the fill uses the LTP
+                        }
+                    }
+
+                    return MarketQuote(
+                        symbol = contract.symbol,
+                        price = ltp,
+                        timestamp = System.currentTimeMillis(),
+                        source = MarketDataSource.LIVE,
+                        openPrice = openPrice
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // fall back to the normal quote below
+            }
+        }
+
+        return provider.getQuote(contract)
+    }
+
+    private fun ltpFromChain(
+        chain: FnoOptionChain,
+        contract: FnoContract
+    ): Double {
+
+        val row = chain.rows.firstOrNull {
+            abs(it.strikePrice - contract.strikePrice) < 0.001
+        } ?: return 0.0
+
+        val side =
+            if (contract.optionType == OptionType.CE) {
+                row.call
+            } else {
+                row.put
+            }
+
+        return side?.ltp ?: 0.0
+    }
+
+    private suspend fun freshPrice(contract: FnoContract): Double {
+        return try {
+            withContext(Dispatchers.IO) {
+                quoteFor(contract, needOpenPrice = false)
+                    ?.price ?: 0.0
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            0.0
+        }
+    }
+
     private suspend fun refreshOnce() {
 
         if (!lotSizesLoaded) {
@@ -333,9 +547,12 @@ class FnoTradeState(
             contracts[it.contract.symbol] = it.contract
         }
 
+        val queuedSymbols = HashSet<String>()
+
         queuedOrders.forEach { order ->
             order.contract?.let {
                 contracts[it.symbol] = it
+                queuedSymbols.add(it.symbol)
             }
         }
 
@@ -351,7 +568,11 @@ class FnoTradeState(
 
         for (contract in contracts.values) {
             try {
-                val quote = provider.getQuote(contract)
+                val quote = quoteFor(
+                    contract,
+                    needOpenPrice =
+                        queuedSymbols.contains(contract.symbol)
+                )
 
                 if (quote != null && quote.price > 0.0) {
                     quotes[contract.symbol] = quote
@@ -519,22 +740,6 @@ class FnoTradeState(
                             ?: "error")
                 )
             }
-
-            // Position fully closed: drop its other exit orders.
-            if (findPosition(
-                    order.contract.symbol,
-                    order.positionSide
-                ) == null
-            ) {
-                book.getExitOrders()
-                    .filter {
-                        it.contract.symbol.equals(
-                            order.contract.symbol,
-                            ignoreCase = true
-                        )
-                    }
-                    .forEach { book.removeExitOrder(it.id) }
-            }
         }
     }
 
@@ -587,6 +792,18 @@ class FnoTradeState(
     }
 
     private fun refreshState() {
+
+        // Target / stop-loss of a position that is gone make no sense.
+        book.getExitOrders().forEach { order ->
+            if (findPosition(
+                    order.contract.symbol,
+                    order.positionSide
+                ) == null
+            ) {
+                book.removeExitOrder(order.id)
+            }
+        }
+
         snapshot = engine.getPortfolioSnapshot()
         positions = engine.getPositions()
         queuedOrders = book.getQueuedOrders()
