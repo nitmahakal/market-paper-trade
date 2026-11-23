@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,6 +42,8 @@ import com.nsepapertrade.model.FnoPositionSide
 import com.nsepapertrade.ui.theme.lossColor
 import com.nsepapertrade.ui.theme.onTradeColor
 import com.nsepapertrade.ui.theme.profitColor
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 private const val CONTRACT_WEIGHT = 1.7f
@@ -188,7 +191,8 @@ fun FnoPositionsPanel(
             } else {
 
                 Text(
-                    text = "Tap a position to set target / stop-loss",
+                    text = "Tap a position to close it or set " +
+                        "target / stop-loss",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -345,6 +349,8 @@ private fun ExitOrderEditor(
     state: FnoTradeState,
     position: FnoPosition
 ) {
+    val scope = rememberCoroutineScope()
+
     val orders = state.exitOrders.filter {
         it.contract.symbol.equals(
             position.contract.symbol,
@@ -362,6 +368,14 @@ private fun ExitOrderEditor(
 
     var triggerText by remember {
         mutableStateOf("")
+    }
+
+    var closeLotsText by remember {
+        mutableStateOf(position.lots.toString())
+    }
+
+    var busy by remember {
+        mutableStateOf(false)
     }
 
     var resultText by remember {
@@ -385,9 +399,84 @@ private fun ExitOrderEditor(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
 
+        // ---------- Close at market ----------
+
+        Text(
+            text = "Close position",
+            style = MaterialTheme.typography.titleSmall
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = closeLotsText,
+                onValueChange = { text ->
+                    closeLotsText = text.filter { it.isDigit() }
+                },
+                modifier = Modifier.weight(1f),
+                label = { Text("Lots to close") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number
+                )
+            )
+
+            Button(
+                onClick = {
+                    if (!busy) {
+                        busy = true
+
+                        scope.launch {
+                            try {
+                                val result = state.closeAtMarket(
+                                    contract = position.contract,
+                                    lots = closeLotsText
+                                        .toIntOrNull() ?: 0
+                                )
+
+                                resultText = result.message
+                                resultOk = result.success
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                resultText =
+                                    e.message ?: "Close failed."
+                                resultOk = false
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = lossColor(),
+                    contentColor = onTradeColor()
+                )
+            ) {
+                Text("CLOSE AT MARKET")
+            }
+        }
+
+        if (!MarketClock.isOpen()) {
+            Text(
+                text = "Market is closed: this will be queued and " +
+                    "close at the open price.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+
+        // ---------- Target / Stop-loss ----------
+
         Text(
             text = "Target / Stop-loss",
-            style = MaterialTheme.typography.titleSmall
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 8.dp)
         )
 
         orders.forEach { order ->
@@ -468,23 +557,41 @@ private fun ExitOrderEditor(
 
         Button(
             onClick = {
-                val result = state.addExitOrder(
-                    contract = position.contract,
-                    type = type,
-                    lots = lotsText.toIntOrNull() ?: 0,
-                    triggerPrice = triggerText.toDoubleOrNull() ?: 0.0
-                )
+                if (!busy) {
+                    busy = true
 
-                resultText = result.message
-                resultOk = result.success
+                    scope.launch {
+                        try {
+                            val result = state.addExitOrderChecked(
+                                contract = position.contract,
+                                type = type,
+                                lots = lotsText.toIntOrNull() ?: 0,
+                                triggerPrice =
+                                    triggerText.toDoubleOrNull() ?: 0.0
+                            )
 
-                if (result.success) {
-                    triggerText = ""
+                            resultText = result.message
+                            resultOk = result.success
+
+                            if (result.success) {
+                                triggerText = ""
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            resultText =
+                                e.message ?: "Could not set order."
+                            resultOk = false
+                        } finally {
+                            busy = false
+                        }
+                    }
                 }
             },
+            enabled = !busy,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("SET")
+            Text(if (busy) "…" else "SET")
         }
 
         if (resultText.isNotBlank()) {
